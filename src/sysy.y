@@ -44,7 +44,7 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Number Exp PrimaryExp UnaryExp UnaryOp AddExp MulExp AddOp MulOp RelExp RelOp EqExp EqOp LAndExp LOrExp Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp
+%type <ast_val> FuncDef FuncType Block Stmt Number Exp PrimaryExp UnaryExp UnaryOp AddExp MulExp AddOp MulOp RelExp RelOp EqExp EqOp LAndExp LOrExp Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal
 
 %%
 
@@ -99,8 +99,16 @@ Block
   ;
 
 Stmt
-  : RETURN Exp ';' {
+  : LVal '=' Exp ';' {
     auto ast = new StmtAST();
+    ast->type = 0;
+    ast->l_val = unique_ptr<BaseAST>($1);
+    ast->exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | RETURN Exp ';' {
+    auto ast = new StmtAST();
+    ast->type = 1;
     ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
@@ -350,7 +358,14 @@ LOrExp
 Decl
   : ConstDecl {
     auto ast = new DeclAST();
+    ast->type = 0;
     ast->const_decl = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | VarDecl {
+    auto ast = new DeclAST();
+    ast->type = 1;
+    ast->var_decl = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -398,6 +413,54 @@ ConstInitVal
 }
 ;
 
+VarDecl
+: BType VarDef  ';' {
+  auto ast = new VarDeclAST();
+  ast->b_type = unique_ptr<BaseAST>($1);
+  ast->var_def = unique_ptr<BaseAST>($2);
+  $$ = ast;
+}
+;
+
+VarDef
+: IDENT {
+  auto ast = new VarDefAST();
+  ast->type = 0;
+  ast->ident = *unique_ptr<std::string>($1);
+  $$ = ast;
+}
+| IDENT '=' InitVal {
+  auto ast = new VarDefAST();
+  ast->type = 1;
+  ast->ident = *unique_ptr<std::string>($1);
+  ast->init_val = unique_ptr<BaseAST>($3);
+  $$ = ast;
+}
+| IDENT ',' VarDef {
+  auto ast = new VarDefAST();
+  ast->type = 2;
+  ast->ident = *unique_ptr<std::string>($1);
+  ast->var_def = unique_ptr<BaseAST>($3);
+  $$ = ast;
+}
+| IDENT '=' InitVal ',' VarDef {
+  auto ast = new VarDefAST();
+  ast->type = 3;
+  ast->ident = *unique_ptr<std::string>($1);
+  ast->init_val = unique_ptr<BaseAST>($3);
+  ast->var_def = unique_ptr<BaseAST>($5);
+  $$ = ast;
+}
+;
+
+InitVal
+: Exp {
+  auto ast = new InitValAST();
+  ast->exp = unique_ptr<BaseAST>($1);
+  $$ = ast;
+}
+;
+
 //Block         ::= "{" {BlockItem} "}";
 
 //BlockItem ::= Decl | Stmt | Decl BlockItem | Stmt BlockItem
@@ -423,7 +486,7 @@ BlockItem
 }
 | Stmt BlockItem {
   auto ast = new BlockItemAST();
-  ast->type = 1;
+  ast->type = 3;
   ast->stmt = unique_ptr<BaseAST>($1);
   ast->block_item = unique_ptr<BaseAST>($2);
   $$ = ast;

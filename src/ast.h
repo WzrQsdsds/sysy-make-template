@@ -93,14 +93,12 @@ class FuncTypeAST : public BaseAST {
     }
 };
 
-//Block     ::= "{" Stmt "}";
-//-> Block         ::= "{" {BlockItem} "}";
 //-> Block ::= "{" BlockItem "}"
 class BlockAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> block_item;
     string Dump() const override {
-        std::cout << "{ \%entry: ";
+        std::cout << "{\n \%entry: \n";
         string ret = block_item->Dump();
         std::cout << " }";
         return ret;
@@ -110,17 +108,30 @@ class BlockAST : public BaseAST {
     }
 };
 
-//->Stmt        ::= "return" Exp ";";
+//->Stmt        ::= LVal "=" Exp ";" | "return" Exp ";";
 class StmtAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> exp;
+    std::unique_ptr<BaseAST> l_val;
     string Dump() const override {
-        string ret = exp->Dump();
-        std::cout << "ret " << ret;
-        return ret;
+        if(type == 0){
+            string ident = l_val->Dump();
+            Symbol s = symbt.globalsymbol[ident];
+            s.value = exp->Calc();
+            symbt.globalsymbol[ident] = s;
+            string ret = exp->Dump();
+            std::cout << "store "<< ret << ", @" << ident << endl;
+            return ident; 
+        }
+        else if(type == 1){
+            string ret = exp->Dump();
+            std::cout << "ret " << ret;
+            return ret;
+        }
+        return string("ERROR");
     }
     int Calc() const override {
-        return 0;
+        return exp->Calc();
     }
 };
 
@@ -137,11 +148,9 @@ class ExpAST : public BaseAST {
     }
 };
 
-// PrimaryExp  ::= "(" Exp ")" | Number;
 //-> PrimaryExp    ::= "(" Exp ")" | LVal | Number;
 class PrimaryExpAST : public BaseAST {
     public:
-    //type == 0 | type == 1
     std::unique_ptr<BaseAST> exp;
     std::unique_ptr<BaseAST> l_val;
     std::unique_ptr<BaseAST> number;
@@ -151,7 +160,16 @@ class PrimaryExpAST : public BaseAST {
             return ret;
         }
         else if(type == 1) {
-            return l_val->Dump();
+            string ident = l_val->Dump();
+            Symbol s = symbt.globalsymbol[ident];
+            if(s.type == 0) {
+                return to_string(l_val->Calc());
+            }
+            else if(s.type == 1) {
+                now++;
+                std::cout << "%" << now << " = load @" << ident <<endl;
+                return string("%") + to_string(now);
+            }
         }
         else if(type == 2){
             return number->Dump();
@@ -538,11 +556,15 @@ class LOrExpAST : public BaseAST {
 //lv4:----------------------------------------------------------
 
 // Decl          ::= ConstDecl;
+//Decl ::= ConstDecl | VarDecl
 class DeclAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> const_decl;
+    std::unique_ptr<BaseAST> var_decl;
     string Dump() const override {
-        string ret = const_decl->Dump();
+        string ret = string("");
+        if(type == 0) ret = const_decl->Dump();
+        else if (type == 1) ret = var_decl->Dump();
         return ret;
     }
     int Calc() const override {
@@ -612,8 +634,61 @@ class ConstInitValAST : public BaseAST {
     }
 };
 
+//VarDecl       ::= BType VarDef {"," VarDef} ";";
+class VarDeclAST : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> b_type;
+    std::unique_ptr<BaseAST> var_def;
+    string Dump() const override {
+        var_def->Dump();
+        return string("");
+    }
+    int Calc() const override {
+        return 0;
+    }
 
-// BlockItem     ::= Decl | Stmt;
+};
+
+//VarDef        ::= IDENT | IDENT "=" InitVal;
+//->              = IDENT | IDENT "=" InitVal | IDENT "," VarDef | IDENT "=" InitVal "," VarDef
+class VarDefAST : public BaseAST {
+    public:
+    std::string ident;
+    std::unique_ptr<BaseAST> init_val;
+    std::unique_ptr<BaseAST> var_def;
+    string Dump() const override {
+        Symbol s;
+        s.type = 1;
+        s.value = 0;
+        std::cout << "@" << ident <<" = alloc i32" <<endl;
+        if(type == 1 || type == 3) {
+            string ret = init_val->Dump();
+            std::cout << "store " << ret << ", @" << ident << endl;
+        }
+        symbt.globalsymbol[ident] = s;
+        if(type == 3 || type == 4) {
+            var_def->Dump();
+        }
+        return string("");
+    }
+    int Calc() const override {
+        return 0;
+    }
+};
+
+//InitVal       ::= Exp;
+class InitValAST : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> exp;
+    string Dump() const override {
+        string ret = exp->Dump();
+        return ret;
+    }
+    int Calc() const override {
+        return exp->Calc();
+    }
+};
+
 // BlockItem ::= Decl | Stmt | Decl BlockItem | Stmt BlockItem
 class BlockItemAST : public BaseAST {
     public:
@@ -652,8 +727,7 @@ class LValAST : public BaseAST {
     public:
     std::string ident;
     string Dump() const override {
-        Symbol s = symbt.globalsymbol[ident];
-        return to_string(s.value);
+        return ident;
     }
     int Calc() const override {
         Symbol s = symbt.globalsymbol[ident];
