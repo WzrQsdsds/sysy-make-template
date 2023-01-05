@@ -39,12 +39,12 @@ using namespace std;
 
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
-%token INT RETURN
+%token INT RETURN EQ NEQ GEQ LEQ LAND LOR
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Number Exp PrimaryExp UnaryExp UnaryOp
+%type <ast_val> FuncDef FuncType Block Stmt Number Exp PrimaryExp UnaryExp UnaryOp AddExp MulExp AddOp MulOp RelExp RelOp EqExp EqOp LAndExp LOrExp
 
 %%
 
@@ -85,7 +85,6 @@ FuncDef
 FuncType
   : INT {
     auto ast = new FuncTypeAST();
-    ast->type = 1;
     $$ = ast;
   }
   ;
@@ -99,24 +98,33 @@ Block
   ;
 
 Stmt
-  : RETURN Number ';' {
+  : RETURN Exp ';' {
     auto ast = new StmtAST();
-    ast->unary_exp = unique_ptr<BaseAST>($2);
+    ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   ;
 
 Exp
-  : UnaryExp {
+  : LOrExp {
     auto ast = new ExpAST();
-    ast->unary_exp = unique_ptr<BaseAST>($1);
+    ast->l_or_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
 
 PrimaryExp
-  : '{' Exp '}' | Number {
-    auto ast 
+  : '(' Exp ')' {
+    auto ast = new PrimaryExpAST();
+    ast->type = 0;
+    ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | Number {
+    auto ast = new PrimaryExpAST();
+    ast->type = 1;
+    ast->number = unique_ptr<BaseAST>($1);
+    $$ = ast;
   }
   ;
 
@@ -128,10 +136,225 @@ Number
   }
   ;
 
+UnaryExp
+  : PrimaryExp {
+    auto ast = new UnaryExpAST();
+    ast->type = 0;
+    ast->primary_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | UnaryOp UnaryExp {
+    auto ast = new UnaryExpAST();
+    ast->type = 1;
+    ast->unary_op = unique_ptr<BaseAST>($1);
+    ast->unary_exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  ;
+
+UnaryOp
+  : '+' {
+    auto ast = new UnaryOpAST();
+    ast->type = 0;
+    $$ = ast;
+  }
+  | '-' {
+    auto ast = new UnaryOpAST();
+    ast->type = 1;
+    $$ = ast;
+  }
+  | '!' {
+    auto ast = new UnaryOpAST();
+    ast->type = 2;
+    $$ = ast;
+  }
+  ;
+
+MulExp
+  : UnaryExp {
+    auto ast = new MulExpAST();
+    ast->type = 0;
+    ast->unary_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | MulExp MulOp UnaryExp {
+    auto ast = new MulExpAST();
+    ast->type = 1;
+    ast->mul_exp = unique_ptr<BaseAST>($1);
+    ast->mul_op = unique_ptr<BaseAST>($2);
+    ast->unary_exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+MulOp
+  : '*' {
+    auto ast = new MulOpAST();
+    ast->type = 0;
+    $$ = ast;
+  } 
+  | '/' {
+    auto ast = new MulOpAST();
+    ast->type = 1;
+    $$ = ast;
+  }
+  | '%' {
+    auto ast = new MulOpAST();
+    ast->type = 2;
+    $$ = ast;
+  }
+  ;
+  
+AddExp
+  : MulExp {
+    auto ast = new AddExpAST();
+    ast->type = 0;
+    ast->mul_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | AddExp AddOp MulExp{
+    auto ast = new AddExpAST();
+    ast->type = 1;
+    ast->add_exp = unique_ptr<BaseAST>($1);
+    ast->add_op = unique_ptr<BaseAST>($2);
+    ast->mul_exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+AddOp
+  : '+' {
+    auto ast = new AddOpAST();
+    ast->type = 0;
+    $$ = ast;
+  }
+  | '-' {
+    auto ast = new AddOpAST();
+    ast->type = 1;
+    $$ = ast;
+  }
+  ;
+
+RelExp
+  : AddExp {
+    auto ast = new RelExpAST();
+    ast->type = 0;
+    ast->add_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  } 
+  | RelExp RelOp AddExp {
+    auto ast = new RelExpAST();
+    ast->type = 1;
+    ast->rel_exp = unique_ptr<BaseAST>($1);
+    ast->rel_op = unique_ptr<BaseAST>($2);
+    ast->add_exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+RelOp
+  : '<' {
+    auto ast = new RelOpAST();
+    ast->type = 0;
+    $$ = ast;
+  }
+  | '>' {
+    auto ast = new RelOpAST();
+    ast->type = 1;
+    $$ = ast;
+  }
+  | LEQ {
+    auto ast = new RelOpAST();
+    ast->type = 2;
+    $$ = ast;
+  }
+  | GEQ {
+    auto ast = new RelOpAST();
+    ast->type = 3;
+    $$ = ast;
+  }
+  ;
+
+EqExp
+  : RelExp {
+    auto ast = new EqExpAST();
+    ast->type = 0;
+    ast->rel_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;    
+  }
+  | EqExp EqOp RelExp {
+    auto ast = new EqExpAST();
+    ast->type = 1;
+    ast->eq_exp = unique_ptr<BaseAST>($1);
+    ast->eq_op = unique_ptr<BaseAST>($2);
+    ast->rel_exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+EqOp
+  : EQ {
+    auto ast = new EqOpAST();
+    ast->type = 0;
+    $$ = ast;
+  }
+  | NEQ {
+    auto ast = new EqOpAST();
+    ast->type = 1;
+    $$ = ast;
+  }
+  ;
+
+LAndExp
+  : EqExp {
+    auto ast = new LAndExpAST();
+    ast->type = 0;
+    ast->eq_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | LAndExp LAND EqExp {
+    auto ast = new LAndExpAST();
+    ast->type = 1;
+    ast->l_and_exp = unique_ptr<BaseAST>($1);
+    ast->eq_exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+LOrExp
+  : LAndExp {
+    auto ast = new LOrExpAST();
+    ast->type = 0;
+    ast->l_and_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | LOrExp LOR LAndExp {
+    auto ast = new LOrExpAST();
+    ast->type = 1;
+    ast->l_or_exp = unique_ptr<BaseAST>($1);
+    ast->l_and_exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+  Decl          ::= ConstDecl;
+ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
+BType         ::= "int";
+ConstDef      ::= IDENT "=" ConstInitVal;
+ConstInitVal  ::= ConstExp;
+
+Block         ::= "{" {BlockItem} "}";
+BlockItem     ::= Decl | Stmt;
+
+LVal          ::= IDENT;
+PrimaryExp    ::= "(" Exp ")" | LVal | Number;
+
+ConstExp      ::= Exp;
+
 %%
 
 // 定义错误处理函数, 其中第二个参数是错误信息
 // parser 如果发生错误 (例如输入的程序出现了语法错误), 就会调用这个函数
 void yyerror(unique_ptr<BaseAST> &ast, const char *s) {
-  cerr << "error: " << s << endl;
+  cerr << "error: " << s <<" "<< ast->Dump() << endl;
 }
