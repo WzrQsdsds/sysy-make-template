@@ -9,6 +9,7 @@
 #include "ast.h"
 #include "koopa.h"
 #include "raw.h"
+#include <map>
 
 // // 函数声明略
 void Visit(const koopa_raw_program_t&);
@@ -17,13 +18,19 @@ void Visit(const koopa_raw_function_t&);
 void Visit(const koopa_raw_basic_block_t&);
 void Visit(const koopa_raw_value_t&);
 void Visit(const koopa_raw_return_t&);
-void Visit(const koopa_raw_integer_t&);
+int Visit(const koopa_raw_integer_t&);
+int Visit(const koopa_raw_binary_t &);
+
+const string reg[] = {"x0","t0","t1","t2","t3","t4","t5","t6","a0","a1","a2","a3","a4","a5","a6","a7"};
+static int use = 0;
+map<koopa_raw_value_t, int> mp;
+
 
 // 访问 raw program
 void Visit(const koopa_raw_program_t &program) {
   // 执行一些其他的必要操作
   // ...
-  std::cout << "    .text" <<endl;
+  std::cout << "  .text" <<endl;
   // 访问所有全局变量
   Visit(program.values);
   // 访问所有函数
@@ -72,7 +79,26 @@ void Visit(const koopa_raw_basic_block_t &bb) {
   // 访问所有指令
   Visit(bb->insts);
 }
-
+/*
+typedef enum {
+  /// Integer constant. KOOPA_RVT_INTEGER, ***
+  /// Zero initializer. KOOPA_RVT_ZERO_INIT,
+  /// Undefined value.  KOOPA_RVT_UNDEF,
+  /// Aggregate constant. KOOPA_RVT_AGGREGATE,
+  /// Function argument reference.  KOOPA_RVT_FUNC_ARG_REF,
+  /// Basic block argument reference.  KOOPA_RVT_BLOCK_ARG_REF,
+  /// Local memory allocation.  KOOPA_RVT_ALLOC,
+  /// Global memory allocation.  KOOPA_RVT_GLOBAL_ALLOC,
+  /// Memory load.  KOOPA_RVT_LOAD,
+  /// Memory store.  KOOPA_RVT_STORE,
+  /// Pointer calculation.  KOOPA_RVT_GET_PTR,
+  /// Element pointer calculation.  KOOPA_RVT_GET_ELEM_PTR,
+  /// Binary operation.  KOOPA_RVT_BINARY,
+  /// Conditional branch.  KOOPA_RVT_BRANCH,
+  /// Unconditional jump.  KOOPA_RVT_JUMP,
+  /// Function call.  KOOPA_RVT_CALL,
+  /// Function return.  KOOPA_RVT_RETURN, ***
+}*/
 // 访问指令
 void Visit(const koopa_raw_value_t &value) {
   // 根据指令类型判断后续需要如何访问
@@ -86,6 +112,9 @@ void Visit(const koopa_raw_value_t &value) {
       // 访问 integer 指令
       Visit(kind.data.integer);
       break;
+    case KOOPA_RVT_BINARY:
+      Visit(kind.data.binary);
+      break;
     default:
       // 其他类型暂时遇不到
       assert(false);
@@ -94,13 +123,33 @@ void Visit(const koopa_raw_value_t &value) {
 
 // 访问对应类型指令的函数定义
 void Visit(const koopa_raw_return_t &ret) {
-    std::cout << "li a0, ";
     Visit(ret.value);
     std::cout << "ret";
 }
 
-void Visit(const koopa_raw_integer_t &integer) {
+int Visit(const koopa_raw_integer_t &integer) {
+    std::cout << "li " << reg[use];
     std::cout <<integer.value <<endl;
 }
 // 视需求自行实现
 //
+// typedef struct {
+//   /// Operator.
+//   koopa_raw_binary_op_t op;
+//   /// Left-hand side value.
+//   koopa_raw_value_t lhs;
+//   /// Right-hand side value.
+//   koopa_raw_value_t rhs;
+// } koopa_raw_binary_t;
+int Visit(const koopa_raw_binary_t &binary) {
+  std::cout << binary.op<< " ";//eq 1 sub 7
+  if(binary.op == 1){
+    std::cout << "eq ";
+  }
+  else if(binary.op == 7){
+    std::cout << "sub ";
+  }
+  Visit(binary.lhs);
+  std::cout<<"!!!";
+  Visit(binary.rhs);
+}

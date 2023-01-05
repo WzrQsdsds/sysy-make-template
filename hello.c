@@ -1,4 +1,4 @@
-int main(){
-	//yi xie zhu shi 
-	return -(-1);
-} 
+int main() {
+  const int x = 1 + 1;
+  return x;
+}
