@@ -35,6 +35,9 @@ typedef struct{
 
 static Symboltable symbt;
 
+static string func_name;
+static int func_depth;
+
 class BaseAST {
     public:
     int type;
@@ -67,6 +70,7 @@ class FuncDefAST : public BaseAST {
     std::unique_ptr<BaseAST> block;
 
     string Dump() const override {
+        func_name = ident;
         std::cout << "fun @" << ident;
         std::cout << "(): ";
         func_type->Dump();
@@ -98,6 +102,7 @@ class BlockAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> block_item;
     string Dump() const override {
+        auto fsl = new funcsymbol;
         std::cout << "{\n \%entry: \n";
         string ret = block_item->Dump();
         std::cout << " }";
@@ -108,11 +113,15 @@ class BlockAST : public BaseAST {
     }
 };
 
-//->Stmt        ::= LVal "=" Exp ";" | "return" Exp ";";
+// Stmt ::= LVal "=" Exp ";"
+//        | Exp ";" | ";"
+//        | Block
+//        | "return" Exp ";"; | return ";"
 class StmtAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> exp;
     std::unique_ptr<BaseAST> l_val;
+    std::unique_ptr<BaseAST> block;
     string Dump() const override {
         if(type == 0){
             string ident = l_val->Dump();
@@ -123,10 +132,25 @@ class StmtAST : public BaseAST {
             std::cout << "store "<< ret << ", @" << ident << endl;
             return ident; 
         }
-        else if(type == 1){
+        else if (type == 1) {
+            string ret = exp->Dump();
+            return ret;
+        }
+        else if(type == 2) {
+            return string("");
+        }
+        else if (type == 3) {
+            string ret = block->Dump();
+            return ret;
+        }
+        else if(type == 4){
             string ret = exp->Dump();
             std::cout << "ret " << ret;
             return ret;
+        }
+        else if(type == 5) {
+            std::cout << "ret";
+            return string("");
         }
         return string("ERROR");
     }

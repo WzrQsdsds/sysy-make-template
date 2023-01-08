@@ -1,6 +1,6 @@
 *.DS_Store
-/build
-/help.txt
-/hello.c
-/src/.vscode
-/out.txt
+build
+help.txt
+hello.c
+src/.vscode
+out.txt

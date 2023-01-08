@@ -98,6 +98,10 @@ Block
   }
   ;
 
+// Stmt ::= LVal "=" Exp ";"
+//        | Exp ";" | ";"
+//        | Block
+//        | "return" Exp ";" | return ";"
 Stmt
   : LVal '=' Exp ';' {
     auto ast = new StmtAST();
@@ -106,10 +110,31 @@ Stmt
     ast->exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
-  | RETURN Exp ';' {
+  | Exp ';' {
     auto ast = new StmtAST();
     ast->type = 1;
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | ";" {
+    auto ast = new StmtAST();
+    ast->type = 2;
+    $$ = ast;
+  }
+  | Block {
+    auto ast = new BlockAST();
+    ast->type = 3;
+    ast->block = unique_ptr<BaseAST>($1);
+  }
+  | RETURN Exp ';' {
+    auto ast = new StmtAST();
+    ast->type = 4;
     ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | RETURN ';' {
+    auto ast = new StmtAST();
+    ast->type = 5;
     $$ = ast;
   }
   ;
