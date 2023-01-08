@@ -89,11 +89,17 @@ FuncType
   }
   ;
 
-////Block         ::= "{" {BlockItem} "}";
+////Block         ::= "{" {BlockItem} "}"; | '{' '}'
 Block
   : '{' BlockItem '}' {
     auto ast = new BlockAST();
+    ast->type = 1;
     ast->block_item = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | '{' '}' {
+    auto ast = new BlockAST();
+    ast->type = 2;
     $$ = ast;
   }
   ;
@@ -116,13 +122,13 @@ Stmt
     ast->exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | ";" {
+  | ';' {
     auto ast = new StmtAST();
     ast->type = 2;
     $$ = ast;
   }
   | Block {
-    auto ast = new BlockAST();
+    auto ast = new StmtAST();
     ast->type = 3;
     ast->block = unique_ptr<BaseAST>($1);
   }

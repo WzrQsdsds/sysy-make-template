@@ -35,8 +35,20 @@ typedef struct{
 
 static Symboltable symbt;
 
+static std::vector<Symbolmap> tempsmap;
+static Symbol *find_ident(std::vector<Symbolmap> &smap, std::string ident) {
+    for(int i = smap.size()-1; i >= 0; i--) {
+        auto iter = (smap[i]).find(ident);
+        if(iter != smap[i].end()) {
+            return &(iter->second);
+        }
+    }
+    std::cout << "error!";
+    return 0;
+}
+
 static string func_name;
-static int func_depth;
+static int depth = 0;
 
 class BaseAST {
     public:
@@ -60,8 +72,6 @@ class CompUnitAST : public BaseAST {
     }
 };
 
-
-
 //FuncDef   ::= FuncType IDENT "(" ")" Block;
 class FuncDefAST : public BaseAST {
     public:
@@ -75,15 +85,15 @@ class FuncDefAST : public BaseAST {
         std::cout << "(): ";
         func_type->Dump();
         std::cout << " ";
+        std::cout << "{\n \%entry: \n";
         block->Dump();
+        std::cout << " }";
         return string("funcdef");
     }
     int Calc() const override {
         return 0;
     }
 };
-
-
 
 //FuncType  ::= "int";
 class FuncTypeAST : public BaseAST {
@@ -97,15 +107,20 @@ class FuncTypeAST : public BaseAST {
     }
 };
 
-//-> Block ::= "{" BlockItem "}"
+//-> Block ::= "{" BlockItem "}" | "{" "}"
 class BlockAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> block_item;
     string Dump() const override {
-        auto fsl = new funcsymbol;
-        std::cout << "{\n \%entry: \n";
+        if(type == 2){
+            return string("");
+        }
+        Symbolmap fsl;
+        tempsmap.push_back(fsl);
+        depth++;
         string ret = block_item->Dump();
-        std::cout << " }";
+        depth--;
+        tempsmap.pop_back();
         return ret;
     }
     int Calc() const override {
@@ -125,11 +140,12 @@ class StmtAST : public BaseAST {
     string Dump() const override {
         if(type == 0){
             string ident = l_val->Dump();
-            Symbol s = symbt.globalsymbol[ident];
-            s.value = exp->Calc();
-            symbt.globalsymbol[ident] = s;
+            //Symbol s = symbt.globalsymbol[ident];
+            Symbol *s = find_ident(tempsmap, ident);
+            s->value = exp->Calc();
+            //symbt.globalsymbol[ident] = s;
             string ret = exp->Dump();
-            std::cout << "store "<< ret << ", @" << ident << endl;
+            std::cout << "store "<< ret << ", @" << s->str << endl;
             return ident; 
         }
         else if (type == 1) {
@@ -145,11 +161,11 @@ class StmtAST : public BaseAST {
         }
         else if(type == 4){
             string ret = exp->Dump();
-            std::cout << "ret " << ret;
+            std::cout << "ret " << ret << endl;
             return ret;
         }
         else if(type == 5) {
-            std::cout << "ret";
+            std::cout << "ret 0" << endl;
             return string("");
         }
         return string("ERROR");
@@ -185,13 +201,14 @@ class PrimaryExpAST : public BaseAST {
         }
         else if(type == 1) {
             string ident = l_val->Dump();
-            Symbol s = symbt.globalsymbol[ident];
-            if(s.type == 0) {
+            //Symbol s = symbt.globalsymbol[ident];
+            Symbol *s = find_ident(tempsmap, ident);
+            if(s->type == 0) {
                 return to_string(l_val->Calc());
             }
-            else if(s.type == 1) {
+            else if(s->type == 1) {
                 now++;
-                std::cout << "%" << now << " = load @" << ident <<endl;
+                std::cout << "%" << now << " = load @" << s->str <<endl;
                 return string("%") + to_string(now);
             }
         }
@@ -273,7 +290,6 @@ class UnaryExpAST : public BaseAST {
         return 0;
     }
 };
-
 //UnaryOp     ::= "+" | "-" | "!";
 class UnaryOpAST : public BaseAST {
     public:
@@ -284,7 +300,6 @@ class UnaryOpAST : public BaseAST {
         return 0;
     }
 };
-
 //MulExp      ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
 class MulExpAST : public BaseAST {
     public:
@@ -623,7 +638,6 @@ class BTypeAST : public BaseAST {
 };
 
 
-// ConstDef      ::= IDENT "=" ConstInitVal;
 //->ConstDef ::= IDENT "=" ConstInitVal | IDENT "=" ConstInitVal "," ConstDef
 class ConstDefAST : public BaseAST {
     public:
@@ -634,7 +648,8 @@ class ConstDefAST : public BaseAST {
         Symbol s;
         s.type = 0;
         s.value = const_init_val->Calc();
-        symbt.globalsymbol[ident] = s;
+        //symbt.globalsymbol[ident] = s;
+        tempsmap.back()[ident] = s;
         if(type == 1) {
             const_def->Dump();
         }
@@ -684,12 +699,14 @@ class VarDefAST : public BaseAST {
         Symbol s;
         s.type = 1;
         s.value = 0;
-        std::cout << "@" << ident <<" = alloc i32" <<endl;
+        s.str = ident  + "_" + to_string(depth);
+        std::cout << "@" << s.str <<" = alloc i32" <<endl;
         if(type == 1 || type == 3) {
             string ret = init_val->Dump();
-            std::cout << "store " << ret << ", @" << ident << endl;
+            std::cout << "store " << ret << ", @" << s.str << endl;
         }
-        symbt.globalsymbol[ident] = s;
+        //symbt.globalsymbol[ident] = s;
+        tempsmap.back()[ident] = s;
         if(type == 3 || type == 4) {
             var_def->Dump();
         }
@@ -754,8 +771,9 @@ class LValAST : public BaseAST {
         return ident;
     }
     int Calc() const override {
-        Symbol s = symbt.globalsymbol[ident];
-        return s.value;
+        //Symbol s = symbt.globalsymbol[ident];
+        Symbol *s = find_ident(tempsmap, ident);
+        return s->value;
     }
 };
 
