@@ -50,6 +50,9 @@ static Symbol *find_ident(std::vector<Symbolmap> &smap, std::string ident) {
 static string func_name;
 static int depth = 0;
 
+static int backend = 0;
+static int if_cnt = 0;
+
 class BaseAST {
     public:
     int type;
@@ -80,6 +83,7 @@ class FuncDefAST : public BaseAST {
     std::unique_ptr<BaseAST> block;
 
     string Dump() const override {
+        backend = 0;
         func_name = ident;
         std::cout << "fun @" << ident;
         std::cout << "(): ";
@@ -112,6 +116,9 @@ class BlockAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> block_item;
     string Dump() const override {
+        if(backend == 1) {
+            return string("");
+        }
         if(type == 2){
             return string("");
         }
@@ -119,7 +126,6 @@ class BlockAST : public BaseAST {
         tempsmap.push_back(fsl);
         depth++;
         string ret = block_item->Dump();
-        depth--;
         tempsmap.pop_back();
         return ret;
     }
@@ -132,12 +138,18 @@ class BlockAST : public BaseAST {
 //        | Exp ";" | ";"
 //        | Block
 //        | "return" Exp ";"; | return ";"
+//  | "if" "(" Exp ")" Stmt "else" Stmt | "if" "(" Exp ")" Stmt
 class StmtAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> exp;
     std::unique_ptr<BaseAST> l_val;
     std::unique_ptr<BaseAST> block;
+    std::unique_ptr<BaseAST> stmt1;
+    std::unique_ptr<BaseAST> stmt2;
     string Dump() const override {
+        if(backend == 1) {
+            return string("");
+        }
         if(type == 0){
             string ident = l_val->Dump();
             //Symbol s = symbt.globalsymbol[ident];
@@ -162,10 +174,55 @@ class StmtAST : public BaseAST {
         else if(type == 4){
             string ret = exp->Dump();
             std::cout << "ret " << ret << endl;
+            backend = 1;
             return ret;
         }
         else if(type == 5) {
             std::cout << "ret 0" << endl;
+            backend = 1;
+            return string("");
+        }
+        else if(type == 6) {
+            string ret = exp->Dump();
+            string ifthen = "\%then_" + to_string(if_cnt);
+            string ifelse = "\%else_" + to_string(if_cnt);
+            string ifend = "\%end_" + to_string(if_cnt);
+            if_cnt ++;
+            std::cout << "br " << ret << ", " << ifthen << " , " << ifelse << endl;
+            std::cout << ifthen << " :" << endl;
+            stmt1->Dump();
+            if(backend == 0){
+                std::cout << "jump "<< ifend << endl;
+            }
+            else {
+                backend = 0;
+            }
+            std::cout << ifelse << ":" << endl;
+            stmt2->Dump();
+            if(backend == 0){
+                std::cout << "jump " << ifend << endl;
+            }
+            else {
+                backend = 0;
+            }
+            std::cout << ifend << ":" << endl;\
+            return string("");
+        }
+        else if(type == 7) {
+            string ret = exp->Dump();
+            string ifthen = "\%then_" + to_string(if_cnt);
+            string ifend = "\%end_" + to_string(if_cnt);
+            if_cnt ++;
+            std::cout << "br " << ret << ", " << ifthen << ", " << ifend << endl;
+            std::cout << ifthen << ":" << endl;
+            stmt1->Dump();
+            if(backend == 0){
+                std::cout << "jump " << ifend << endl;
+            }
+            else {
+                backend = 0;
+            }
+            std::cout << ifend << ":" << endl;
             return string("");
         }
         return string("ERROR");
@@ -534,6 +591,11 @@ class LAndExpAST : public BaseAST {
         }
         else if (type == 1) {
             string ret1 = l_and_exp->Dump();
+            if (l_and_exp->Calc() == 0) {
+                now++;
+                std::cout << "%" << now <<" = ne " << ret1 <<", 0" << endl;
+                return string("%")+to_string(now);
+            }
             string ret2 = eq_exp->Dump();
             now++;
             std::cout << "%" << now <<" = ne " << ret1 <<", 0" << endl;
@@ -550,6 +612,9 @@ class LAndExpAST : public BaseAST {
             return eq_exp->Calc();
         }
         else if (type == 1) {
+            if (l_and_exp->Calc() == 0) {
+                return 0;
+            }
             return l_and_exp->Calc() && eq_exp->Calc();
         }
         return 0;
@@ -568,6 +633,11 @@ class LOrExpAST : public BaseAST {
         }
         else if (type == 1) {
             string ret1 = l_or_exp->Dump();
+            if(l_or_exp->Calc() != 0) {
+                now++;
+                std::cout << "%" << now <<" = ne " << ret1 <<", 0" << endl;
+                return string("%") + to_string(now);
+            }
             string ret2 = l_and_exp->Dump();
             now++;
             std::cout << "%" << now <<" = ne " << ret1 <<", 0" << endl;
@@ -584,6 +654,9 @@ class LOrExpAST : public BaseAST {
             return l_and_exp->Calc();
         }
         else if(type == 1) {
+            if(l_or_exp->Calc() != 0) {
+                return 1;
+            }
             return l_or_exp->Calc() || l_and_exp->Calc();
         }
         std::cout << "ERROR";
