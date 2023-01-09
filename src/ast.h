@@ -7,6 +7,7 @@
 #include <map>
 #include <vector>
 #include <set>
+#include <stack>
 using namespace std;
 
 static int now = -1;
@@ -52,6 +53,7 @@ static int depth = 0;
 
 static int backend = 0;
 static int if_cnt = 0;
+static stack<int> ifstack;
 
 class BaseAST {
     public:
@@ -139,6 +141,7 @@ class BlockAST : public BaseAST {
 //        | Block
 //        | "return" Exp ";"; | return ";"
 //  | "if" "(" Exp ")" Stmt "else" Stmt | "if" "(" Exp ")" Stmt
+// | "while" "(" Exp ")" Stmt
 class StmtAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> exp;
@@ -225,6 +228,41 @@ class StmtAST : public BaseAST {
             std::cout << ifend << ":" << endl;
             return string("");
         }
+        else if(type == 8) {
+            string while_entry = "\%while_entry_" + to_string(if_cnt);
+            string while_body = "\%while_body_" + to_string(if_cnt);
+            string while_end = "\%end_" + to_string(if_cnt);
+            ifstack.push(if_cnt);
+            if_cnt ++;
+            std::cout << "jump " << while_entry <<endl;
+            std::cout << while_entry <<":" <<endl;
+            string ret = exp->Dump();
+            std::cout << "br " << ret << ", " << while_body << ", " << while_end <<endl;
+            std::cout << while_body << ":" << endl; 
+            stmt1->Dump();
+            if (backend == 0) {
+                std::cout << "jump " << while_entry << endl;
+            }
+            else {
+                backend = 0;
+            }
+            ifstack.pop();
+            std::cout << while_end << ":" <<endl;
+            return string("");
+        }
+        else if(type == 9) {//break
+            int iftemp = ifstack.top();
+            std::cout << "jump %end_" << iftemp <<endl;
+            backend = 1;
+            return string("");
+        }
+        else if(type == 10) {
+            int iftemp = ifstack.top();
+            backend = 1;
+            std::cout << "jump %while_entry_" << iftemp << endl;
+            return string("");
+        }
+            
         return string("ERROR");
     }
     int Calc() const override {
@@ -674,6 +712,9 @@ class DeclAST : public BaseAST {
     std::unique_ptr<BaseAST> const_decl;
     std::unique_ptr<BaseAST> var_decl;
     string Dump() const override {
+        if(backend == 1) {
+            return string("");
+        }
         string ret = string("");
         if(type == 0) ret = const_decl->Dump();
         else if (type == 1) ret = var_decl->Dump();

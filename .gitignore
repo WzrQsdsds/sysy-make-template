@@ -2,5 +2,6 @@
 build
 help.txt
 hello.c
+hello.koopa
 src/.vscode
 out.txt
