@@ -1,13 +1,27 @@
 fun @main(): i32 {
- %entry: 
-@a_1 = alloc i32
-store 2, @a_1
-store 4, @a_1
-@a_2 = alloc i32
-store 5, @a_2
-store 7, @a_1
-@a_3 = alloc i32
-store 10, @a_3
-%0 = load @a_1
-ret %0
- }
+%entry:
+  @a = alloc i32
+  store 2, @a
+  // if 的条件判断部分
+  %0 = load @a
+
+  
+  br %0, %then, %else
+
+// if 语句的 if 分支
+%then:
+  %1 = load @a
+  %2 = add %1, 1
+  store %2, @a
+  jump %end
+
+// if 语句的 else 分支
+%else:
+  store 0, @a
+  jump %end
+
+// if 语句之后的内容, if/else 分支的交汇处
+%end:
+  %3 = load @a
+  ret %3
+}

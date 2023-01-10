@@ -1,17 +1,20 @@
   .text
   .globl main
 main:
-1 0
-!!!6
-7 0
-!!!1 0
-!!!6
-7 0
-!!!7 0
-!!!1 0
-!!!6
-li a0, 7 0
-!!!7 0
-!!!1 0
-!!!6
+addi sp, sp, 512
+li   t0, 10
+sw   t0, 0(sp)
+lw   t0, 0(sp)
+sw   t0, 4(sp)
+lw   t0, 4(sp)
+li   t1, 1
+add  t0, t0, t1
+sw   t0, 8(sp)
+lw   t0, 8(sp)
+sw   t0, 0(sp)
+lw   t0, 0(sp)
+sw   t0, 12(sp)
+lw   a0, 12(sp)
+addi sp, sp, -512
 ret
+
