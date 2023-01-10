@@ -307,9 +307,6 @@ void Visit(const koopa_raw_load_t &load) {
 //   koopa_raw_slice_t false_args;
 // // } koopa_raw_branch_t;
 void Visit(const koopa_raw_branch_t &branch) {
-  // lw t0, 4(sp)
-  // bnez t0, then
-  // j else
   string reg = string("t0");
   set_reg(branch.cond, reg);
   std::cout << "bnez t0, " << branch.true_bb->name + 1 << endl;
