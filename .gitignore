@@ -3,5 +3,7 @@ build
 help.txt
 hello.c
 hello.koopa
+hello.riscv
 src/.vscode
 out.txt
+koopa.h

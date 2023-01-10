@@ -1,4 +1,5 @@
 int main() {
-  while (1) break;
-  return 0;
+  int x = 10;
+  x = x + 1;
+  return x;
 }
