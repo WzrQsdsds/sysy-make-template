@@ -1,20 +1,16 @@
   .text
   .globl main
 main:
-addi sp, sp, 512
-li   t0, 10
-sw   t0, 0(sp)
-lw   t0, 0(sp)
-sw   t0, 4(sp)
-lw   t0, 4(sp)
-li   t1, 1
-add  t0, t0, t1
-sw   t0, 8(sp)
-lw   t0, 8(sp)
-sw   t0, 0(sp)
-lw   t0, 0(sp)
-sw   t0, 12(sp)
-lw   a0, 12(sp)
 addi sp, sp, -512
+j while_entry_0
+while_entry_0:
+li   t0, 1
+bnez t0, while_body_0
+j end_0
+while_body_0:
+j end_0
+end_0:
+li   a0, 2
+addi sp, sp, 512
 ret
 
