@@ -192,7 +192,7 @@ class StmtAST : public BaseAST {
             string ifend = "\%end_" + to_string(if_cnt);
             if_cnt ++;
             std::cout << "br " << ret << ", " << ifthen << " , " << ifelse << endl;
-            std::cout << ifthen << " :" << endl;
+            std::cout << ifthen << ":" << endl;
             stmt1->Dump();
             if(backend == 0){
                 std::cout << "jump "<< ifend << endl;

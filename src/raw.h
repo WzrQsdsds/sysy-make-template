@@ -22,6 +22,8 @@ void Visit(const koopa_raw_integer_t&);
 void Visit(const koopa_raw_binary_t &);
 void Visit(const koopa_raw_store_t &store);
 void Visit(const koopa_raw_load_t &load);
+void Visit(const koopa_raw_branch_t &branch);
+void Visit(const koopa_raw_jump_t &jump);
 
 // int nVisit(const koopa_raw_basic_block_t&);
 // int nVisit(const koopa_raw_value_t&);
@@ -105,11 +107,10 @@ void Visit(const koopa_raw_function_t &func) {
   // 执行一些其他的必要操作
   // ... 
   std::cout << "  .globl main" << endl;
-  std::cout << "main:" << endl;
-  std::cout << "addi sp, sp, ";
   //nVisit(func->bbs);
   func_m_cnt = ((func_m_cnt + 15) / 16) * 16;
-  std::cout << func_m_cnt << endl;
+  std::cout << "main:" << endl;
+  std::cout << "addi sp, sp, " << (-1) * func_m_cnt << endl;
   // 访问所有基本块
   Visit(func->bbs);
 }
@@ -117,7 +118,10 @@ void Visit(const koopa_raw_function_t &func) {
 // 访问基本块
 void Visit(const koopa_raw_basic_block_t &bb) {
   // 执行一些其他的必要操作
-  // ...
+  if(string(bb->name) != string("\%entry")){
+    std::cout << bb->name + 1 << ":" << endl;
+  }
+  
   
   // 访问所有指令
   Visit(bb->insts);
@@ -132,8 +136,6 @@ typedef enum {
   /// Global memory allocation.  KOOPA_RVT_GLOBAL_ALLOC,
   /// Pointer calculation.  KOOPA_RVT_GET_PTR,
   /// Element pointer calculation.  KOOPA_RVT_GET_ELEM_PTR,
-  /// Conditional branch.  KOOPA_RVT_BRANCH,
-  /// Unconditional jump.  KOOPA_RVT_JUMP,
   /// Function call.  KOOPA_RVT_CALL,
 }*/
 // union {
@@ -143,7 +145,6 @@ typedef enum {
 //     koopa_raw_global_alloc_t global_alloc;
 //     koopa_raw_get_ptr_t get_ptr;
 //     koopa_raw_get_elem_ptr_t get_elem_ptr;
-//     koopa_raw_branch_t branch;
 //     koopa_raw_jump_t jump;
 //     koopa_raw_call_t call;
 //   } data;
@@ -182,6 +183,12 @@ void Visit(const koopa_raw_value_t &value) {
       mp[value] = regcnt;
       regcnt++;
       break;
+    case KOOPA_RVT_BRANCH:
+      Visit(kind.data.branch);
+      break;
+    case KOOPA_RVT_JUMP:
+      Visit(kind.data.jump);
+      break;
     default:
       // 其他类型暂时遇不到
       assert(false);
@@ -193,7 +200,7 @@ void Visit(const koopa_raw_return_t &ret) {
   string reg = string("a0");
   set_reg(ret.value, reg);
   std::cout << "addi sp, sp, ";
-  std::cout << func_m_cnt * (-1) << endl;
+  std::cout << func_m_cnt << endl;
   std::cout << "ret" << endl;
 }
 
@@ -285,4 +292,37 @@ void Visit(const koopa_raw_store_t &store) {
 void Visit(const koopa_raw_load_t &load) {
   string reg = string("t0");
   set_reg(load.src, reg);
+}
+
+// typedef struct {
+//   /// Condition.
+//   koopa_raw_value_t cond;
+//   /// Target if condition is `true`.
+//   koopa_raw_basic_block_t true_bb;
+//   /// Target if condition is `false`.
+//   koopa_raw_basic_block_t false_bb;
+//   /// Arguments of `true` target..
+//   koopa_raw_slice_t true_args;
+//   /// Arguments of `false` target..
+//   koopa_raw_slice_t false_args;
+// // } koopa_raw_branch_t;
+void Visit(const koopa_raw_branch_t &branch) {
+  // lw t0, 4(sp)
+  // bnez t0, then
+  // j else
+  string reg = string("t0");
+  set_reg(branch.cond, reg);
+  std::cout << "bnez t0, " << branch.true_bb->name + 1 << endl;
+  std::cout << "j " << branch.false_bb->name + 1 << endl; 
+
+}
+
+// typedef struct {
+//   /// Target.
+//   koopa_raw_basic_block_t target;
+//   /// Arguments of target..
+//   koopa_raw_slice_t args;
+// } koopa_raw_jump_t;
+void Visit(const koopa_raw_jump_t &jump) {
+  std::cout << "j " << jump.target->name + 1 << endl;
 }
