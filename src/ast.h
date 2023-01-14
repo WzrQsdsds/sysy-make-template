@@ -43,18 +43,12 @@ static Symbol *find_ident(std::string ident) {
     return 0;
 }
 static void insert_ident(std::string ident, Symbol &s) {
-    std::cout << "insert, " << ident << endl;
-    std::cout << cur_func_name << endl;
-    std::cout << "4";
     if (cur_func_name == string("")) {
-        std::cout << "3";
         globalsymbol[ident] = s;
         return;
     }
-    std::cout << "1";
     std::vector<Symbolmap> &smap = funcsymbolmap[cur_func_name]; 
-    std::cout << "2";
-    smap.back()[ident] = s;
+    (smap.back())[ident] = s;
     return ;
 }
 
@@ -78,13 +72,21 @@ class CompUnitAST : public BaseAST {
     std::unique_ptr<BaseAST> unit;
     string Dump() const override {        
         std::cout << "decl @getint(): i32" << endl;
+        func_type_map[string("getint")] = 1;
         std::cout << "decl @getch(): i32" << endl;
+        func_type_map[string("getch")] = 1;
         std::cout << "decl @getarray(*i32): i32" << endl;
+        func_type_map[string("getarray")] = 1;
         std::cout << "decl @putint(i32)" << endl;
+        func_type_map[string("putint")] = 0;
         std::cout << "decl @putch(i32)" << endl;
+        func_type_map[string("putch")] = 0;
         std::cout << "decl @putarray(i32, *i32)" << endl;
+        func_type_map[string("putarray")] = 0;
         std::cout << "decl @starttime()" << endl;
+        func_type_map[string("starttime")] = 0;
         std::cout << "decl @stoptime()" << endl;
+        func_type_map[string("stoptime")] = 0;
         unit->Dump();
         return string("");
     }
@@ -1054,6 +1056,9 @@ class FuncFParamAST : public BaseAST {
         return string("");
     }
     int Calc() const override {
+        auto &smap = funcsymbolmap[cur_func_name];
+        Symbolmap fsl;
+        smap.push_back(fsl);
         Symbol s;
         s.type = 1;
         s.value = 0;
@@ -1061,7 +1066,6 @@ class FuncFParamAST : public BaseAST {
         std::cout << "@" << s.str <<" = alloc i32" <<endl;
         std::cout << "store @" << ident << ", \%" << s.str << endl;
         insert_ident(ident, s);
-        std::cout << "here";
         if(type == 1) {
             func_f_param->Calc();
         }
