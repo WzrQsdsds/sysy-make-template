@@ -96,8 +96,8 @@ class CompUnitAST : public BaseAST {
 }
 ;
 
-//CompUnit    ::= [CompUnit] (Decl | FuncDef)
-// Decl | FuncDef | Decl CompUnit | FuncDef CompUnit
+//Unit    ::= [Unit] (Decl | FuncDef)
+// Decl | FuncDef | Decl Unit | FuncDef Unit
 class UnitAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> unit;
@@ -921,12 +921,14 @@ class VarDefAST : public BaseAST {
             std::cout << "global @" << s.str << " = alloc i32";
             if(type == 1 || type == 3) {
                 int ret = init_val->Calc();
+                s.value = ret;
                 std::cout << ", " << ret << endl;
             }
             else {
                 std::cout << ", zeroinit" << endl;
             }
-            if(type == 3 || type == 4) {
+            insert_ident(ident, s);
+            if(type == 2 || type == 3) {
                 var_def->Dump();
             }
             return string("");
@@ -941,7 +943,7 @@ class VarDefAST : public BaseAST {
             std::cout << "store " << ret << ", @" << s.str << endl;
         }
         insert_ident(ident, s);
-        if(type == 3 || type == 4) {
+        if(type == 2 || type == 3) {
             var_def->Dump();
         }
         return string("");

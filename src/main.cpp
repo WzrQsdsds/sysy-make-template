@@ -33,8 +33,7 @@ int main(int argc, const char *argv[]) {
 
   // 调用 parser 函数, parser 函数会进一步调用 lexer 解析输入文件的
   unique_ptr<BaseAST> ast;
-  /*auto ret = */yyparse(ast);
-  //assert(!ret);
+  yyparse(ast);
 
   if(mode[1] == 'k') {//koopa
     // 保存cout流缓冲区指针
@@ -43,9 +42,8 @@ int main(int argc, const char *argv[]) {
     streambuf* fileBuf = of.rdbuf();
     // 设置cout流缓冲区指针为out.txt的流缓冲区指针
     cout.rdbuf(fileBuf);
-
     ast->Dump();
-    cout << endl;
+    std::cout << endl;
  
     of.flush();
     of.close();

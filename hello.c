@@ -1,7 +1,4 @@
-int var;
-
-const int one = 1;
-
-int main() {
-  return var + one;
+int main(){
+  int a = 5;
+  return a+1;
 }
