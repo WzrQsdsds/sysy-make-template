@@ -20,35 +20,44 @@ typedef struct {
 
 typedef std::map<std::string, Symbol> Symbolmap;
 
-typedef struct func_symbol {
-    int depth;
-    std::vector<Symbolmap> smap;
-    std::set<std::string> nameset;
-    func_symbol() {
-        depth = 0;
-    }
-}funcsymbol;
+static Symbolmap globalsymbol;
+static std::map <std::string, std::vector<Symbolmap>> funcsymbolmap;
 
-typedef struct{
-    Symbolmap globalsymbol;
-    std::map <std::string, std::unique_ptr<func_symbol>> funcsymbolmap;
-}Symboltable;
+static std::map <std::string, int> func_type_map;
 
-static Symboltable symbt;
+static string cur_func_name = string("");
 
-static std::vector<Symbolmap> tempsmap;
-static Symbol *find_ident(std::vector<Symbolmap> &smap, std::string ident) {
+static Symbol *find_ident(std::string ident) {
+    std::vector<Symbolmap> &smap = funcsymbolmap[cur_func_name]; 
     for(int i = smap.size()-1; i >= 0; i--) {
         auto iter = (smap[i]).find(ident);
         if(iter != smap[i].end()) {
             return &(iter->second);
         }
     }
-    std::cout << "error!";
+    auto iter = globalsymbol.find(ident);
+    if (iter != globalsymbol.end()){
+        return &(iter->second);
+    }
+    std::cout << "error";
     return 0;
 }
+static void insert_ident(std::string ident, Symbol &s) {
+    std::cout << "insert, " << ident << endl;
+    std::cout << cur_func_name << endl;
+    std::cout << "4";
+    if (cur_func_name == string("")) {
+        std::cout << "3";
+        globalsymbol[ident] = s;
+        return;
+    }
+    std::cout << "1";
+    std::vector<Symbolmap> &smap = funcsymbolmap[cur_func_name]; 
+    std::cout << "2";
+    smap.back()[ident] = s;
+    return ;
+}
 
-static string func_name;
 static int depth = 0;
 
 static int backend = 0;
@@ -63,50 +72,113 @@ class BaseAST {
     virtual int Calc() const = 0;
 };
 
-//CompUnit  ::= FuncDef;
+//CompUnit -> Unit
 class CompUnitAST : public BaseAST {
     public:
-    std::unique_ptr<BaseAST> func_def;
-
-    string Dump() const override {
-        func_def->Dump();
-        return string("compunit");
+    std::unique_ptr<BaseAST> unit;
+    string Dump() const override {        
+        std::cout << "decl @getint(): i32" << endl;
+        std::cout << "decl @getch(): i32" << endl;
+        std::cout << "decl @getarray(*i32): i32" << endl;
+        std::cout << "decl @putint(i32)" << endl;
+        std::cout << "decl @putch(i32)" << endl;
+        std::cout << "decl @putarray(i32, *i32)" << endl;
+        std::cout << "decl @starttime()" << endl;
+        std::cout << "decl @stoptime()" << endl;
+        unit->Dump();
+        return string("");
     }
     int Calc() const override {
         return 0;
     }
-};
+}
+;
 
-//FuncDef   ::= FuncType IDENT "(" ")" Block;
+//CompUnit    ::= [CompUnit] (Decl | FuncDef)
+// Decl | FuncDef | Decl CompUnit | FuncDef CompUnit
+class UnitAST : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> unit;
+    std::unique_ptr<BaseAST> func_def;
+    std::unique_ptr<BaseAST> decl;
+    string Dump() const override {
+        if (type == 0) {
+            decl->Dump();
+            return string("");
+        }
+        else if (type == 1) {
+            func_def->Dump();
+            return string("");
+        }
+        else if (type == 2) {
+            decl->Dump();
+            unit->Dump();
+            return string("");
+        }
+        else if (type == 3) {
+            func_def->Dump();
+            unit->Dump();
+            return string("");
+        }
+        return string("");
+    }
+    int Calc() const override {
+        return 0;
+    }
+}
+;
+
+//FuncDef   ::= FuncType IDENT "(" FuncFParams ")" Block; | FuncType IDENT "(" ")" Block; 
 class FuncDefAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> func_type;
     std::string ident;
+    std::unique_ptr<BaseAST> func_f_params;
     std::unique_ptr<BaseAST> block;
 
     string Dump() const override {
         backend = 0;
-        func_name = ident;
+        cur_func_name = ident;
         std::cout << "fun @" << ident;
-        std::cout << "(): ";
-        func_type->Dump();
-        std::cout << " ";
-        std::cout << "{\n \%entry: \n";
+        std::cout << "(";
+        if (type == 0) {
+            func_f_params->Dump();
+        }
+        std::cout << ")";
+        std::cout << func_type->Dump();
+        if(func_type -> type == 0){
+            func_type_map[ident] = 0;
+        }
+        else {
+            func_type_map[ident] = 1;
+        }
+        std::cout << " {\n\%entry: \n";
+        if (type == 0) {
+            func_f_params->Calc();
+        }
         block->Dump();
-        std::cout << " }";
-        return string("funcdef");
+        if(func_type->type == 0 && backend == 0) {
+            std::cout << "ret" << endl;
+        }
+        std::cout << "}" << endl;
+        cur_func_name = string("");
+        return string("");
     }
     int Calc() const override {
         return 0;
     }
 };
 
-//FuncType  ::= "int";
+//FuncType    ::= "void" | "int";
 class FuncTypeAST : public BaseAST {
     public:
     string Dump() const override {
-        std::cout<<"i32";
-        return string("i32");
+        if(type == 0)
+            return string("");
+        else if (type == 1) {
+            return string(": i32");
+        }
+        return string("");
     }
     int Calc() const override {
         return 0;
@@ -124,11 +196,12 @@ class BlockAST : public BaseAST {
         if(type == 2){
             return string("");
         }
-        Symbolmap fsl;
-        tempsmap.push_back(fsl);
+        Symbolmap *fsl = new Symbolmap;
+        std::vector<Symbolmap> &smap = funcsymbolmap[cur_func_name]; 
+        smap.push_back(*fsl);
         depth++;
         string ret = block_item->Dump();
-        tempsmap.pop_back();
+        smap.pop_back();
         return ret;
     }
     int Calc() const override {
@@ -156,7 +229,7 @@ class StmtAST : public BaseAST {
         if(type == 0){
             string ident = l_val->Dump();
             //Symbol s = symbt.globalsymbol[ident];
-            Symbol *s = find_ident(tempsmap, ident);
+            Symbol *s = find_ident(ident);
             s->value = exp->Calc();
             //symbt.globalsymbol[ident] = s;
             string ret = exp->Dump();
@@ -297,7 +370,7 @@ class PrimaryExpAST : public BaseAST {
         else if(type == 1) {
             string ident = l_val->Dump();
             //Symbol s = symbt.globalsymbol[ident];
-            Symbol *s = find_ident(tempsmap, ident);
+            Symbol *s = find_ident(ident);
             if(s->type == 0) {
                 return to_string(l_val->Calc());
             }
@@ -338,12 +411,14 @@ class NumberAST : public BaseAST {
     }
 };
 
-// UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
+// UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp; | IDENT "("  ")" | IDENT "(" FuncRParams ")"
 class UnaryExpAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> primary_exp;
     std::unique_ptr<BaseAST> unary_op;
     std::unique_ptr<BaseAST> unary_exp;
+    std::string ident;
+    std::unique_ptr<BaseAST> func_r_params;
     string Dump() const override {
         if(type == 0){
             string ret = primary_exp->Dump();
@@ -365,6 +440,30 @@ class UnaryExpAST : public BaseAST {
                 return string("%")+to_string(now);
             }
         }
+        else if (type == 2) {
+            if(func_type_map[ident] == 1){
+                now ++;
+                std::cout << "%" << now << " = ";
+            }
+            
+            std::cout << "call @" << ident << "()" << endl;
+            if(func_type_map[ident] == 1)
+                return string("%") + to_string(now);
+            else return string("");
+        }
+        else if (type == 3) {
+            string ret = func_r_params->Dump();
+            if(func_type_map[ident] == 1){
+                now ++;
+                std::cout << "%" << now << " = ";
+            }
+            std::cout << "call @" << ident << "(";
+            std::cout << ret;
+            std::cout << ")" << endl;
+            if(func_type_map[ident] == 1)
+                return string("%") + to_string(now);
+            else return string("");
+        }
         return string("");
     }
     int Calc() const override {
@@ -381,6 +480,12 @@ class UnaryExpAST : public BaseAST {
             else if(unary_op->type == 2){
                 return !unary_exp->Calc();
             }
+        }
+        else if (type == 2) {
+            return 0;
+        }
+        else if (type == 3) {
+            return 0;
         }
         return 0;
     }
@@ -702,9 +807,6 @@ class LOrExpAST : public BaseAST {
     }
 };
 
-
-//lv4:----------------------------------------------------------
-
 // Decl          ::= ConstDecl;
 //Decl ::= ConstDecl | VarDecl
 class DeclAST : public BaseAST {
@@ -762,8 +864,7 @@ class ConstDefAST : public BaseAST {
         Symbol s;
         s.type = 0;
         s.value = const_init_val->Calc();
-        //symbt.globalsymbol[ident] = s;
-        tempsmap.back()[ident] = s;
+        insert_ident(ident, s);
         if(type == 1) {
             const_def->Dump();
         }
@@ -810,6 +911,24 @@ class VarDefAST : public BaseAST {
     std::unique_ptr<BaseAST> init_val;
     std::unique_ptr<BaseAST> var_def;
     string Dump() const override {
+        if(cur_func_name == ""){
+            Symbol s;
+            s.type = 1;
+            s.str = ident;
+            s.value = 0;
+            std::cout << "global @" << s.str << " = alloc i32";
+            if(type == 1 || type == 3) {
+                int ret = init_val->Calc();
+                std::cout << ", " << ret << endl;
+            }
+            else {
+                std::cout << ", zeroinit" << endl;
+            }
+            if(type == 3 || type == 4) {
+                var_def->Dump();
+            }
+            return string("");
+        }
         Symbol s;
         s.type = 1;
         s.value = 0;
@@ -819,8 +938,7 @@ class VarDefAST : public BaseAST {
             string ret = init_val->Dump();
             std::cout << "store " << ret << ", @" << s.str << endl;
         }
-        //symbt.globalsymbol[ident] = s;
-        tempsmap.back()[ident] = s;
+        insert_ident(ident, s);
         if(type == 3 || type == 4) {
             var_def->Dump();
         }
@@ -886,7 +1004,7 @@ class LValAST : public BaseAST {
     }
     int Calc() const override {
         //Symbol s = symbt.globalsymbol[ident];
-        Symbol *s = find_ident(tempsmap, ident);
+        Symbol *s = find_ident(ident);
         return s->value;
     }
 };
@@ -903,3 +1021,70 @@ class ConstExpAST : public BaseAST {
         return exp->Calc();
     }
 };
+
+//FuncFParams ::= FuncFParam;
+class FuncFParamsAST : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> func_f_param;
+    string Dump() const override {
+        func_f_param->Dump();
+        return string("");
+    }
+    int Calc() const override {
+        func_f_param->Calc();
+        return 0;
+    }
+
+};
+
+//FuncFParam  ::= BType IDENT | BType IDENT "," FuncFParam;
+class FuncFParamAST : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> b_type;
+    std::string ident;
+    std::unique_ptr<BaseAST> func_f_param;
+    string Dump() const override {
+        if (type == 0) {
+            std::cout << "@" << ident <<": i32";
+        }
+        else if (type == 1) {
+            std::cout << "@" << ident <<": i32, ";
+            func_f_param->Dump(); 
+        }
+        return string("");
+    }
+    int Calc() const override {
+        Symbol s;
+        s.type = 1;
+        s.value = 0;
+        s.str = ident  + "_" + to_string(depth);
+        std::cout << "@" << s.str <<" = alloc i32" <<endl;
+        std::cout << "store @" << ident << ", \%" << s.str << endl;
+        insert_ident(ident, s);
+        std::cout << "here";
+        if(type == 1) {
+            func_f_param->Calc();
+        }
+        return 0;
+    }
+};
+
+//FuncRParams ::= Exp {"," Exp};
+//FuncRParams = Exp | Exp ',' FuncRParams
+class FuncRParamsAST : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> exp;
+    std::unique_ptr<BaseAST> func_r_params;
+    string Dump() const override {
+        string ret1 = exp->Dump();
+        if(type == 1) {
+            string ret2 =  func_r_params->Dump();
+            return ret1 + string(", ") + ret2;
+        }
+        return ret1;
+    }
+    int Calc() const override {
+        return 0;
+    }
+}
+;

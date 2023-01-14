@@ -1,4 +1,13 @@
+int half(int x) {
+  return x / 2;
+}
+
+
+
+
+void f() {}
+
 int main() {
-  while (1) break;
-  return 2;
+  f();
+  return half(10);
 }

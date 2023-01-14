@@ -39,12 +39,12 @@ using namespace std;
 
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
-%token INT RETURN EQ NEQ GEQ LEQ LAND LOR
+%token INT RETURN EQ NEQ GEQ LEQ LAND LOR VOID
 %token <str_val> IDENT CONST IF ELSE WHILE BREAK CONTINUE
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Number Exp PrimaryExp UnaryExp UnaryOp AddExp MulExp AddOp MulOp RelExp RelOp EqExp EqOp LAndExp LOrExp Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal
+%type <ast_val> Unit FuncDef FuncType Block Stmt Number Exp PrimaryExp UnaryExp UnaryOp AddExp MulExp AddOp MulOp RelExp RelOp EqExp EqOp LAndExp LOrExp Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal FuncFParam FuncFParams FuncRParams
 
 %%
 
@@ -53,27 +53,60 @@ using namespace std;
 // 而 parser 一旦解析完 CompUnit, 就说明所有的 token 都被解析了, 即解析结束了
 // 此时我们应该把 FuncDef 返回的结果收集起来, 作为 AST 传给调用 parser 的函数
 // $1 指代规则里第一个符号的返回值, 也就是 FuncDef 的返回值
+
 CompUnit
-  : FuncDef {
+  : Unit {
     auto comp_unit = make_unique<CompUnitAST>();
-    comp_unit->func_def = unique_ptr<BaseAST>($1);
+    comp_unit->unit = unique_ptr<BaseAST>($1);
     ast = move(comp_unit);
   }
   ;
 
-// FuncDef ::= FuncType IDENT '(' ')' Block;
-// 我们这里可以直接写 '(' 和 ')', 因为之前在 lexer 里已经处理了单个字符的情况
-// 解析完成后, 把这些符号的结果收集起来, 然后拼成一个新的字符串, 作为结果返回
-// $$ 表示非终结符的返回值, 我们可以通过给这个符号赋值的方法来返回结果
-// 你可能会问, FuncType, IDENT 之类的结果已经是字符串指针了
-// 为什么还要用 unique_ptr 接住它们, 然后再解引用, 把它们拼成另一个字符串指针呢
-// 因为所有的字符串指针都是我们 new 出来的, new 出来的内存一定要 delete
-// 否则会发生内存泄漏, 而 unique_ptr 这种智能指针可以自动帮我们 delete
-// 虽然此处你看不出用 unique_ptr 和手动 delete 的区别, 但当我们定义了 AST 之后
-// 这种写法会省下很多内存管理的负担
+
+// Decl | FuncDef | Decl CompUnit | FuncDef CompUnit
+Unit
+  : Decl {
+    auto ast = new UnitAST();
+    ast->type = 0;
+    ast->decl = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | FuncDef {
+    auto ast = new UnitAST();
+    ast->type = 1;
+    ast->func_def = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | Decl Unit {
+    auto ast = new UnitAST();
+    ast->type = 2;
+    ast->decl = unique_ptr<BaseAST>($1);
+    ast->unit = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | FuncDef Unit {
+    auto ast = new UnitAST();
+    ast->type = 3;
+    ast->func_def = unique_ptr<BaseAST>($1);
+    ast->unit = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  ;
+
+// FuncType IDENT "(" FuncFParams ")" Block; | FuncType IDENT "(" ")" Block; 
 FuncDef
-  : FuncType IDENT '(' ')' Block {
+  : FuncType IDENT '(' FuncFParams ')' Block {
     auto ast = new FuncDefAST();
+    ast->type = 0;
+    ast->func_type = unique_ptr<BaseAST>($1);
+    ast->ident = *unique_ptr<string>($2);
+    ast->func_f_params = unique_ptr<BaseAST>($4);
+    ast->block = unique_ptr<BaseAST>($6);
+    $$ = ast;
+  }
+  | FuncType IDENT '(' ')' Block {
+    auto ast = new FuncDefAST();
+    ast->type = 1;
     ast->func_type = unique_ptr<BaseAST>($1);
     ast->ident = *unique_ptr<string>($2);
     ast->block = unique_ptr<BaseAST>($5);
@@ -83,8 +116,14 @@ FuncDef
 
 // 同上, 不再解释
 FuncType
-  : INT {
+  : VOID {
     auto ast = new FuncTypeAST();
+    ast->type = 0;
+    $$ = ast;
+  }
+  | INT {
+    auto ast = new FuncTypeAST();
+    ast->type = 1;
     $$ = ast;
   }
   ;
@@ -229,6 +268,19 @@ UnaryExp
     ast->type = 1;
     ast->unary_op = unique_ptr<BaseAST>($1);
     ast->unary_exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | IDENT '('  ')' {
+    auto ast = new UnaryExpAST();
+    ast->type = 2;
+    ast->ident = *unique_ptr<std::string>($1);
+    $$ = ast;
+  }
+  | IDENT '(' FuncRParams ')' {
+    auto ast = new UnaryExpAST();
+    ast->type = 3;
+    ast->ident = *unique_ptr<std::string>($1);
+    ast->func_r_params = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
@@ -572,6 +624,48 @@ ConstExp
 : Exp {
   auto ast = new ConstExpAST();
   ast->exp = unique_ptr<BaseAST>($1);
+  $$ = ast;
+}
+;
+
+FuncFParams
+: FuncFParam {
+  auto ast = new FuncFParamsAST();
+  ast->func_f_param = unique_ptr<BaseAST>($1);
+  $$ = ast;
+}
+;
+
+FuncFParam 
+: BType IDENT {
+  auto ast = new FuncFParamAST();
+  ast->type = 0;
+  ast->b_type = unique_ptr<BaseAST>($1);
+  ast->ident = *unique_ptr<std::string>($2);
+  $$ = ast;
+}
+| BType IDENT ',' FuncFParam {
+  auto ast = new FuncFParamAST();
+  ast->type = 1;
+  ast->b_type = unique_ptr<BaseAST>($1);
+  ast->ident = *unique_ptr<std::string>($2);
+  ast->func_f_param = unique_ptr<BaseAST>($4);
+  $$ = ast;
+}
+;
+
+FuncRParams
+: Exp {
+  auto ast = new FuncRParamsAST();
+  ast->type = 0;
+  ast->exp = unique_ptr<BaseAST>($1);
+  $$ = ast;
+}
+| Exp ',' FuncRParams {
+  auto ast = new FuncRParamsAST();
+  ast->type = 1;
+  ast->exp = unique_ptr<BaseAST>($1);
+  ast->func_r_params = unique_ptr<BaseAST>($3);
   $$ = ast;
 }
 ;
