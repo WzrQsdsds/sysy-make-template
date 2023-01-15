@@ -96,29 +96,31 @@ class CompUnitAST : public BaseAST {
 }
 ;
 
+static int functype;
 //Unit    ::= [Unit] (Decl | FuncDef)
 // Decl | FuncDef | Decl Unit | FuncDef Unit
+//ConstDecl | FuncType FunOrVarDef | ConstDecl Unit | FuncType FunOrVarDef Unit
 class UnitAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> unit;
-    std::unique_ptr<BaseAST> func_def;
-    std::unique_ptr<BaseAST> decl;
+    std::unique_ptr<BaseAST> fun_or_var_decl;
+    std::unique_ptr<BaseAST> const_decl;
     string Dump() const override {
         if (type == 0) {
-            decl->Dump();
+            const_decl->Dump();
             return string("");
         }
         else if (type == 1) {
-            func_def->Dump();
+            fun_or_var_decl->Dump();
             return string("");
         }
         else if (type == 2) {
-            decl->Dump();
+            const_decl->Dump();
             unit->Dump();
             return string("");
         }
         else if (type == 3) {
-            func_def->Dump();
+            fun_or_var_decl->Dump();
             unit->Dump();
             return string("");
         }
@@ -129,11 +131,43 @@ class UnitAST : public BaseAST {
     }
 }
 ;
-
-//FuncDef   ::= FuncType IDENT "(" FuncFParams ")" Block; | FuncType IDENT "(" ")" Block; 
-class FuncDefAST : public BaseAST {
+//FunOrVarDecl -> FuncType FunOrVarDef
+class FunOrVarDeclAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> func_type;
+    std::unique_ptr<BaseAST> fun_or_var_def;
+    string Dump() const override {
+        functype = func_type->type;
+        fun_or_var_def->Dump();
+        return string("");
+    }
+    int Calc() const override {
+        return 0;
+    }
+}
+;
+
+//FunOrVar -> FuncDef | VarDef ";"
+class FunOrVarDefAST : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> func_def;
+    std::unique_ptr<BaseAST> var_def;
+    string Dump() const override {
+        if(type == 0) {
+            func_def->Dump();
+        }
+        else var_def->Dump();
+        return string("");
+    }
+    int Calc() const override {
+        return 0;
+    }
+}
+;
+
+//FuncDef   ::= IDENT "(" FuncFParams ")" Block; | IDENT "(" ")" Block; 
+class FuncDefAST : public BaseAST {
+    public:
     std::string ident;
     std::unique_ptr<BaseAST> func_f_params;
     std::unique_ptr<BaseAST> block;
@@ -147,19 +181,16 @@ class FuncDefAST : public BaseAST {
             func_f_params->Dump();
         }
         std::cout << ")";
-        std::cout << func_type->Dump();
-        if(func_type -> type == 0){
-            func_type_map[ident] = 0;
+        if(functype == 1){
+            std::cout << ": i32";
         }
-        else {
-            func_type_map[ident] = 1;
-        }
+        func_type_map[ident] = functype;
         std::cout << " {\n\%entry: \n";
         if (type == 0) {
             func_f_params->Calc();
         }
         block->Dump();
-        if(func_type->type == 0 && backend == 0) {
+        if(functype == 0 && backend == 0) {
             std::cout << "ret" << endl;
         }
         std::cout << "}" << endl;
@@ -913,7 +944,7 @@ class VarDefAST : public BaseAST {
     std::unique_ptr<BaseAST> init_val;
     std::unique_ptr<BaseAST> var_def;
     string Dump() const override {
-        if(cur_func_name == ""){
+        if(cur_func_name == string("")){
             Symbol s;
             s.type = 1;
             s.str = ident;
@@ -1066,7 +1097,7 @@ class FuncFParamAST : public BaseAST {
         s.value = 0;
         s.str = ident  + "_" + to_string(depth);
         std::cout << "@" << s.str <<" = alloc i32" <<endl;
-        std::cout << "store @" << ident << ", \%" << s.str << endl;
+        std::cout << "store @" << ident << ", @" << s.str << endl;
         insert_ident(ident, s);
         if(type == 1) {
             func_f_param->Calc();

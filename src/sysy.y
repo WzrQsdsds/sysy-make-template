@@ -44,7 +44,7 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> Unit FuncDef FuncType Block Stmt Number Exp PrimaryExp UnaryExp UnaryOp AddExp MulExp AddOp MulOp RelExp RelOp EqExp EqOp LAndExp LOrExp Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal FuncFParam FuncFParams FuncRParams
+%type <ast_val> Unit FuncDef FuncType Block Stmt Number Exp PrimaryExp UnaryExp UnaryOp AddExp MulExp AddOp MulOp RelExp RelOp EqExp EqOp LAndExp LOrExp Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal FuncFParam FuncFParams FuncRParams FunOrVarDef FunOrVarDecl
 
 %%
 
@@ -63,53 +63,75 @@ CompUnit
   ;
 
 
-// Decl | FuncDef | Decl CompUnit | FuncDef CompUnit
+//ConstDecl | FunOrVarDecl | ConstDecl Unit | FunOrVarDecl Unit
 Unit
-  : Decl {
+  : ConstDecl {
     auto ast = new UnitAST();
     ast->type = 0;
-    ast->decl = unique_ptr<BaseAST>($1);
+    ast->const_decl = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | FuncDef {
-    auto ast = new UnitAST();
-    ast->type = 1;
-    ast->func_def = unique_ptr<BaseAST>($1);
-    $$ = ast;
-  }
-  | Decl Unit {
-    auto ast = new UnitAST();
-    ast->type = 2;
-    ast->decl = unique_ptr<BaseAST>($1);
-    ast->unit = unique_ptr<BaseAST>($2);
-    $$ = ast;
-  }
-  | FuncDef Unit {
+  | FunOrVarDecl Unit {
     auto ast = new UnitAST();
     ast->type = 3;
-    ast->func_def = unique_ptr<BaseAST>($1);
+    ast->fun_or_var_decl = unique_ptr<BaseAST>($1);
     ast->unit = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | FunOrVarDecl {
+    auto ast = new UnitAST();
+    ast->type = 1;
+    ast->fun_or_var_decl = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | ConstDecl Unit {
+    auto ast = new UnitAST();
+    ast->type = 2;
+    ast->const_decl = unique_ptr<BaseAST>($1);
+    ast->unit = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  ;
+
+  FunOrVarDecl
+  : FuncType FunOrVarDef {
+    auto ast = new FunOrVarDeclAST();
+    ast->func_type = unique_ptr<BaseAST>($1);
+    ast->fun_or_var_def = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  ;
+
+  FunOrVarDef
+  : FuncDef {
+    auto ast = new FunOrVarDefAST();
+    ast->type = 0;
+    ast->func_def = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | VarDef ';' {
+    auto ast = new FunOrVarDefAST();
+    ast->type = 1;
+    ast->var_def = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
 
 // FuncType IDENT "(" FuncFParams ")" Block; | FuncType IDENT "(" ")" Block; 
 FuncDef
-  : FuncType IDENT '(' FuncFParams ')' Block {
+  : IDENT '(' FuncFParams ')' Block {
     auto ast = new FuncDefAST();
     ast->type = 0;
-    ast->func_type = unique_ptr<BaseAST>($1);
-    ast->ident = *unique_ptr<string>($2);
-    ast->func_f_params = unique_ptr<BaseAST>($4);
-    ast->block = unique_ptr<BaseAST>($6);
+    ast->ident = *unique_ptr<string>($1);
+    ast->func_f_params = unique_ptr<BaseAST>($3);
+    ast->block = unique_ptr<BaseAST>($5);
     $$ = ast;
   }
-  | FuncType IDENT '(' ')' Block {
+  | IDENT '(' ')' Block {
     auto ast = new FuncDefAST();
     ast->type = 1;
-    ast->func_type = unique_ptr<BaseAST>($1);
-    ast->ident = *unique_ptr<string>($2);
-    ast->block = unique_ptr<BaseAST>($5);
+    ast->ident = *unique_ptr<string>($1);
+    ast->block = unique_ptr<BaseAST>($4);
     $$ = ast;
   }
   ;
@@ -675,5 +697,6 @@ FuncRParams
 // 定义错误处理函数, 其中第二个参数是错误信息
 // parser 如果发生错误 (例如输入的程序出现了语法错误), 就会调用这个函数
 void yyerror(unique_ptr<BaseAST> &ast, const char *s) {
+  if(ast == 0) cerr << "no ast" << endl;
   cerr << "error: " << s <<" "<< ast->Dump() << endl;
 }
