@@ -11,6 +11,7 @@
 using namespace std;
 
 static int now = -1;
+static int l_cal_cnt = 0;
 
 typedef struct {
     int type;
@@ -767,18 +768,35 @@ class LAndExpAST : public BaseAST {
         }
         else if (type == 1) {
             string ret1 = l_and_exp->Dump();
-            if (l_and_exp->Calc() == 0) {
-                now++;
-                std::cout << "%" << now <<" = ne " << ret1 <<", 0" << endl;
-                return string("%")+to_string(now);
-            }
-            string ret2 = eq_exp->Dump();
+            string reseult = string("l_cal_cnt_") + to_string(l_cal_cnt);
+            l_cal_cnt++;
+            Symbol s;
+            s.type = 1;
+            s.value = 0;
+            s.str = reseult + "_" + to_string(depth);
+            std::cout << "@" << s.str << " = alloc i32" << endl; 
+            std::cout << "store 0, @" << s.str << endl;
+            insert_ident(reseult,s);
+
             now++;
             std::cout << "%" << now <<" = ne " << ret1 <<", 0" << endl;
+            string br = string("%") + to_string(now);
+            string ifthen = "\%then_" + to_string(if_cnt);
+            string ifend = "\%end_" + to_string(if_cnt);
+            if_cnt ++;
+            std::cout << "br " << br << ", " << ifthen << ", " << ifend << endl;
+
+            std::cout << ifthen << ":" << endl;
+            string ret2 = eq_exp->Dump();
             now++;
             std::cout << "%" << now <<" = ne " << ret2 <<", 0" << endl;
+            std::cout << "store %" << now << ", @" << s.str << endl;
+            std::cout << "jump " << ifend << endl;
+
+            std::cout << ifend << ":" << endl;
             now++;
-            std::cout << "%" << now <<" = and %" << (now - 2) <<", %" << (now - 1) << endl;
+            std::cout << "\%" << now << " = load @" << s.str << endl;
+            
             return string("%")+to_string(now);
         }
         return string("ERROR");
@@ -809,18 +827,35 @@ class LOrExpAST : public BaseAST {
         }
         else if (type == 1) {
             string ret1 = l_or_exp->Dump();
-            if(l_or_exp->Calc() != 0) {
-                now++;
-                std::cout << "%" << now <<" = ne " << ret1 <<", 0" << endl;
-                return string("%") + to_string(now);
-            }
+            string reseult = string("l_cal_cnt_") + to_string(l_cal_cnt);
+            l_cal_cnt++;
+            Symbol s;
+            s.type = 1;
+            s.value = 0;
+            s.str = reseult + "_" + to_string(depth);
+            std::cout << "@" << s.str << " = alloc i32" << endl; 
+            std::cout << "store 1, @" << s.str << endl;
+            insert_ident(reseult,s);
+
+            now++;
+            std::cout << "%" << now <<" = eq " << ret1 <<", 0" << endl;
+            string br = string("%") + to_string(now);
+            string ifthen = "\%then_" + to_string(if_cnt);
+            string ifend = "\%end_" + to_string(if_cnt);
+            if_cnt ++;
+            std::cout << "br " << br << ", " << ifthen << ", " << ifend << endl;
+
+            std::cout << ifthen << ":" << endl;
             string ret2 = l_and_exp->Dump();
             now++;
-            std::cout << "%" << now <<" = ne " << ret1 <<", 0" << endl;
-            now++;
             std::cout << "%" << now <<" = ne " << ret2 <<", 0" << endl;
+            std::cout << "store %" << now << ", @" << s.str << endl;
+            std::cout << "jump " << ifend << endl;
+
+            std::cout << ifend << ":" << endl;
             now++;
-            std::cout << "%" << now <<" = or %" << (now - 2) <<", %" << (now - 1) << endl;
+            std::cout << "\%" << now << " = load @" << s.str << endl;
+            
             return string("%")+to_string(now);
         }
         return string("ERROR");

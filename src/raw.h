@@ -24,6 +24,7 @@ void Visit(const koopa_raw_store_t &store);
 void Visit(const koopa_raw_load_t &load);
 void Visit(const koopa_raw_branch_t &branch);
 void Visit(const koopa_raw_jump_t &jump);
+void Visit(const koopa_raw_call_t &call);
 
 // int nVisit(const koopa_raw_basic_block_t&);
 // int nVisit(const koopa_raw_value_t&);
@@ -47,7 +48,7 @@ void set_reg(const koopa_raw_value_t &value, string reg) {
     return;
   }
   if (value->kind.tag == KOOPA_RVT_INTEGER) {
-    std::cout << "li   " << reg << ", ";
+    std::cout << "li   " << reg << ", " ;
     Visit(value);
     std::cout << endl;
   }
@@ -103,16 +104,28 @@ void Visit(const koopa_raw_slice_t &slice) {
 }
 
 // 访问函数
+// typedef struct {
+//   /// Type of function.
+//   koopa_raw_type_t ty;
+//   /// Name of function.
+//   const char *name;
+//   /// Parameters.
+//   koopa_raw_slice_t params;
+//   /// Basic blocks, empty if is a function declaration.
+//   koopa_raw_slice_t bbs;
+// } koopa_raw_function_data_t;
 void Visit(const koopa_raw_function_t &func) {
   // 执行一些其他的必要操作
   // ... 
-  std::cout << "  .globl main" << endl;
-  //nVisit(func->bbs);
-  func_m_cnt = ((func_m_cnt + 15) / 16) * 16;
-  std::cout << "main:" << endl;
-  std::cout << "addi sp, sp, " << (-1) * func_m_cnt << endl;
-  // 访问所有基本块
-  Visit(func->bbs);
+    if(func->bbs.len > 0){
+      std::cout << "  .global " << func->name + 1 << endl;
+      //nVisit(func->bbs);
+      func_m_cnt = ((func_m_cnt + 15) / 16) * 16;
+      std::cout << func->name + 1 << ":" << endl;
+      std::cout << "addi sp, sp, " << (-1) * func_m_cnt << endl;
+      // 访问所有基本块
+      Visit(func->bbs);
+    }
 }
 
 // 访问基本块
@@ -136,7 +149,6 @@ typedef enum {
   /// Global memory allocation.  KOOPA_RVT_GLOBAL_ALLOC,
   /// Pointer calculation.  KOOPA_RVT_GET_PTR,
   /// Element pointer calculation.  KOOPA_RVT_GET_ELEM_PTR,
-  /// Function call.  KOOPA_RVT_CALL,
 }*/
 // union {
 //     koopa_raw_aggregate_t aggregate;
@@ -145,8 +157,6 @@ typedef enum {
 //     koopa_raw_global_alloc_t global_alloc;
 //     koopa_raw_get_ptr_t get_ptr;
 //     koopa_raw_get_elem_ptr_t get_elem_ptr;
-//     koopa_raw_jump_t jump;
-//     koopa_raw_call_t call;
 //   } data;
 // 访问指令
 void Visit(const koopa_raw_value_t &value) {
@@ -169,7 +179,7 @@ void Visit(const koopa_raw_value_t &value) {
       regcnt++;
       break;
     case KOOPA_RVT_STORE:
-      //store
+      //Memory store
       Visit(kind.data.store);
       break;
     case KOOPA_RVT_LOAD:
@@ -188,6 +198,9 @@ void Visit(const koopa_raw_value_t &value) {
       break;
     case KOOPA_RVT_JUMP:
       Visit(kind.data.jump);
+      break;
+    case KOOPA_RVT_CALL:
+      Visit(kind.data.call);
       break;
     default:
       // 其他类型暂时遇不到
@@ -218,55 +231,56 @@ void Visit(const koopa_raw_integer_t &integer) {
 //   koopa_raw_value_t rhs;
 // } koopa_raw_binary_t; op : ne, eq, gt, lt, ge, le, add, sub, mul, div, mod, and, or, xor, shl, shr, sar
 void Visit(const koopa_raw_binary_t &binary) {
-  string reg1 = string("t0");
-  string reg2 = string("t1");
+  string reg0 = string("t0");
+  string reg1 = string("t1");
+  string reg2 = string("t2");
   set_reg(binary.lhs, reg1);
   set_reg(binary.rhs, reg2);
   if (binary.op == 0) {//ne
-    std::cout << "xor  t0, t0, t1" << endl;
+    std::cout << "xor  t0, t1, t2" << endl;
     std::cout << "snez t0, t0" << endl;
   }
   else if(binary.op == 1){//eq
-    std::cout << "xor  t0, t0, t1" << endl;
+    std::cout << "xor  t0, t1, t2" << endl;
     std::cout << "seqz t0, t0" << endl;
   }
   else if (binary.op == 2) {//gt
-    std::cout << "sgt  t0, t0, t1" << endl;
+    std::cout << "sgt  t0, t1, t2" << endl;
   }
   else if (binary.op == 3) {//lt
-    std::cout << "slt  t0, t0, t1" << endl;
+    std::cout << "slt  t0, t1, t2" << endl;
   }
   else if (binary.op == 4) {//ge
-    std::cout << "slt  t0, t0, t1" << endl;
+    std::cout << "slt  t0, t1, t2" << endl;
     std::cout << "seqz t0, t0" << endl;
   }
   else if (binary.op == 5) {//le
-    std::cout << "sgt  t0, t0, t1" << endl;
+    std::cout << "sgt  t0, t1, t2" << endl;
     std::cout << "seqz t0, t0" << endl;
   }
   else if (binary.op == 6) {//add
-    std::cout << "add  t0, t0, t1" << endl;
+    std::cout << "add  t0, t1, t2" << endl;
   }
   else if (binary.op == 7) {//sub
-    std::cout << "sub  t0, t0, t1" << endl;
+    std::cout << "sub  t0, t1, t2" << endl;
   }
   else if (binary.op == 8) {//mul
-    std::cout << "mul  t0, t0, t1" << endl;
+    std::cout << "mul  t0, t1, t2" << endl;
   }
   else if (binary.op == 9) {//div
-    std::cout << "div  t0, t0, t1" << endl;
+    std::cout << "div  t0, t1, t2" << endl;
   }
   else if (binary.op == 10) {//mod
-    std::cout << "rem  t0, t0, t1" << endl;
+    std::cout << "rem  t0, t1, t2" << endl;
   }
   else if (binary.op == 11) {//and
-    std::cout << "and  t0, t0, t1" << endl;
+    std::cout << "and  t0, t1, t2" << endl;
   }
   else if (binary.op == 12) {//or
-    std::cout << "or   t0, t0, t1" << endl;
+    std::cout << "or   t0, t1, t2" << endl;
   }
   else if (binary.op == 13) {//xor
-    std::cout << "xor t0, t0, t1" << endl;
+    std::cout << "xor t0, t1, t2" << endl;
   }
   else {//shl shr sar
     std::cout << "ERROR";
@@ -322,4 +336,14 @@ void Visit(const koopa_raw_branch_t &branch) {
 // } koopa_raw_jump_t;
 void Visit(const koopa_raw_jump_t &jump) {
   std::cout << "j " << jump.target->name + 1 << endl;
+}
+
+// typedef struct {
+//   /// Callee.
+//   koopa_raw_function_t callee;
+//   /// Arguments.
+//   koopa_raw_slice_t args;
+// } koopa_raw_call_t;
+void Visit(const koopa_raw_call_t &call) {
+  
 }
