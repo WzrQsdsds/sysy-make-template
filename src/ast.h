@@ -59,6 +59,9 @@ static int backend = 0;
 static int if_cnt = 0;
 static stack<int> ifstack;
 
+static int len_size;
+static int len[256];
+
 class BaseAST {
     public:
     int type;
@@ -922,12 +925,13 @@ class BTypeAST : public BaseAST {
 };
 
 
-//->ConstDef ::= IDENT "=" ConstInitVal | IDENT "=" ConstInitVal "," ConstDef
+//->ConstDef ::= IDENT "=" ConstInitVal | IDENT "=" ConstInitVal "," ConstDef | IDENT ArraryDef "=" ConstInitVal | IDENT ArrayDef "=" ConstInitVal "," ConstDef
 class ConstDefAST : public BaseAST {
     public:
     std::string ident;
     std::unique_ptr<BaseAST> const_init_val;
     std::unique_ptr<BaseAST> const_def;
+    std::unique_ptr<BaseAST> array_def;
     string Dump() const override {
         Symbol s;
         s.type = 0;
@@ -943,16 +947,49 @@ class ConstDefAST : public BaseAST {
     }
 };
 
+//ArrayDef -> '[' ConstExp ']' | '[' ConstExp ']' ArrayDef
+class ArrayDefAST : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> const_def;
+    std::unique_ptr<BaseAST> array_def;
+    string Dump() const override {
+        Symbol s;
+        s.type = 0;
+        s.value = const_init_val->Calc();
+        insert_ident(ident, s);
+        if(type == 1) {
+            const_def->Dump();
+        }
+        return string("");
+    }
+    int Calc() const override {
+        return 0;
+    }
+};
 
-// ConstInitVal  ::= ConstExp;
+// ConstInitVal  ::= ConstExp | '{' '}' | '{' ConstArrayInitVal '}'
 class ConstInitValAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> const_exp;
+    std::unique_ptr<BaseAST> const_array_init_val;
     string Dump() const override {
         return string("");
     }
     int Calc() const override {
         return const_exp->Calc();
+    }
+};
+
+//ConstArrayInitVal -> ConstInitVal | ConstInitVal ',' ConstArrayInitVal
+class ConstArrayInitVal : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> const_init_val;
+    std::unique_ptr<BaseAST> const_array_init_val;
+    string Dump() const override {
+        return string("");
+    }
+    int Calc() const override {
+        return 0;
     }
 };
 
@@ -971,13 +1008,14 @@ class VarDeclAST : public BaseAST {
 
 };
 
-//VarDef        ::= IDENT | IDENT "=" InitVal;
-//->              = IDENT | IDENT "=" InitVal | IDENT "," VarDef | IDENT "=" InitVal "," VarDef
+// = IDENT | IDENT "=" InitVal | IDENT "," VarDef | IDENT "=" InitVal "," VarDef
+//= IDENT ArrayDef | IDENT ArrayDef "=" InitVal | IDENT ArrayDef "," VarDef | IDENT ArrayDef "=" InitVal "," VarDef
 class VarDefAST : public BaseAST {
     public:
     std::string ident;
     std::unique_ptr<BaseAST> init_val;
     std::unique_ptr<BaseAST> var_def;
+    std::unique_ptr<BaseAST> array_def;
     string Dump() const override {
         if(cur_func_name == string("")){
             Symbol s;
@@ -1019,16 +1057,28 @@ class VarDefAST : public BaseAST {
     }
 };
 
-//InitVal       ::= Exp;
+//InitVal       ::= Exp | '{' '}' | '{' ArrayInitVal '}'
 class InitValAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> exp;
+    std::unique_ptr<BaseAST> array_init_val;
     string Dump() const override {
         string ret = exp->Dump();
         return ret;
     }
     int Calc() const override {
         return exp->Calc();
+    }
+};
+
+//ArrayInitVal -> InitVal | InitVal ',' ArrayInitVal
+class ArrayInitValAST : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> init_val;
+    std::unique_ptr<BaseAST> array_init_val;
+    string Dump() const override {
+    }
+    int Calc() const override {
     }
 };
 
@@ -1065,10 +1115,26 @@ class BlockItemAST : public BaseAST {
 };
 
 
-// LVal          ::= IDENT;
+// LVal          ::= IDENT | IDENT ArrayLVal
 class LValAST : public BaseAST {
     public:
     std::string ident;
+    std::unique_ptr<BaseAST> array_l_val;
+    string Dump() const override {
+        return ident;
+    }
+    int Calc() const override {
+        //Symbol s = symbt.globalsymbol[ident];
+        Symbol *s = find_ident(ident);
+        return s->value;
+    }
+};
+
+//ArrayLVal -> '[' Exp ']' | '[' Exp ']' ArrayLVal
+class ArrayLValAST : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> exp;
+    std::unique_ptr<BaseAST> array_l_val;
     string Dump() const override {
         return ident;
     }
