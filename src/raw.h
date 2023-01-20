@@ -25,6 +25,8 @@ void Visit(const koopa_raw_load_t &load);
 void Visit(const koopa_raw_branch_t &branch);
 void Visit(const koopa_raw_jump_t &jump);
 void Visit(const koopa_raw_call_t &call);
+void Visit(const koopa_raw_global_alloc_t &global_alloc);
+void Visit(const koopa_raw_func_arg_ref_t &func_arg_ref);
 
 // int nVisit(const koopa_raw_basic_block_t&);
 // int nVisit(const koopa_raw_value_t&);
@@ -34,35 +36,19 @@ void Visit(const koopa_raw_call_t &call);
 
 static std::map<koopa_raw_value_t, int> mp;
 static int regcnt = 0;
-static koopa_raw_value_t regvalue[3] = {0,0,0};//t0,t1,a0
 static int func_m_cnt = 512;
+static int ra_reg_cnt;
 
 void set_reg(const koopa_raw_value_t &value, string reg) {
-  if(reg == string("t0") && regvalue[0] == value) {
-    return;
-  }
-  if(reg == string("t1") && regvalue[1] == value) {
-    return;
-  }
-  if(reg == string("a0") && regvalue[2] == value) {
-    return;
-  }
   if (value->kind.tag == KOOPA_RVT_INTEGER) {
     std::cout << "li   " << reg << ", " ;
     Visit(value);
     std::cout << endl;
   }
   else {
-    std::cout <<  "lw   " << reg << ", " << mp[value] * 4 << "(sp)" << endl;
-  }
-  if(reg == string("t0")) {
-    regvalue[0] = value;
-  }
-  if(reg == string("t1")) {
-    regvalue[1] = value;
-  }
-  if(reg == string("a0")) {
-    regvalue[2] = value;
+    std::cout << "li   t4, " << mp[value] * 4 << endl;
+    std::cout << "add  t4, t4, sp" << endl;
+    std::cout <<  "lw   " << reg << ", (t4)" << endl;
   }
   return;
 }
@@ -71,7 +57,7 @@ void set_reg(const koopa_raw_value_t &value, string reg) {
 void Visit(const koopa_raw_program_t &program) {
   // 执行一些其他的必要操作
   // ...
-  std::cout << "  .text" <<endl;
+  
   // 访问所有全局变量
   Visit(program.values);
   // 访问所有函数
@@ -118,11 +104,18 @@ void Visit(const koopa_raw_function_t &func) {
   // 执行一些其他的必要操作
   // ... 
     if(func->bbs.len > 0){
+      std::cout << "  .text" <<endl;
       std::cout << "  .global " << func->name + 1 << endl;
       //nVisit(func->bbs);
       func_m_cnt = ((func_m_cnt + 15) / 16) * 16;
       std::cout << func->name + 1 << ":" << endl;
       std::cout << "addi sp, sp, " << (-1) * func_m_cnt << endl;
+      std::cout << "li   t4, " << regcnt * 4 << endl;
+      std::cout << "add  t4, t4, sp" << endl;
+      std::cout << "sw   ra, (t4)" << endl;
+      ra_reg_cnt = regcnt;
+      regcnt++;
+      Visit(func->params);
       // 访问所有基本块
       Visit(func->bbs);
     }
@@ -141,20 +134,16 @@ void Visit(const koopa_raw_basic_block_t &bb) {
 }
 /*
 typedef enum {
-  /// Zero initializer. KOOPA_RVT_ZERO_INIT,
-  /// Undefined value.  KOOPA_RVT_UNDEF,
-  /// Aggregate constant. KOOPA_RVT_AGGREGATE,
-  /// Function argument reference.  KOOPA_RVT_FUNC_ARG_REF,
-  /// Basic block argument reference.  KOOPA_RVT_BLOCK_ARG_REF,
-  /// Global memory allocation.  KOOPA_RVT_GLOBAL_ALLOC,
-  /// Pointer calculation.  KOOPA_RVT_GET_PTR,
-  /// Element pointer calculation.  KOOPA_RVT_GET_ELEM_PTR,
+  /// Zero initializer. KOOPA_RVT_ZERO_INIT, zero init
+  /// Undefined value.  KOOPA_RVT_UNDEF, undef
+  /// Aggregate constant. KOOPA_RVT_AGGREGATE, rvt aggregate
+  /// Basic block argument reference.  KOOPA_RVT_BLOCK_ARG_REF, koopa rvt block arg ref
+  /// Pointer calculation.  KOOPA_RVT_GET_PTR, rvt get ptr
+  /// Element pointer calculation.  KOOPA_RVT_GET_ELEM_PTR, koopa rrt get elem ptr
 }*/
 // union {
 //     koopa_raw_aggregate_t aggregate;
-//     koopa_raw_func_arg_ref_t func_arg_ref;
 //     koopa_raw_block_arg_ref_t block_arg_ref;
-//     koopa_raw_global_alloc_t global_alloc;
 //     koopa_raw_get_ptr_t get_ptr;
 //     koopa_raw_get_elem_ptr_t get_elem_ptr;
 //   } data;
@@ -174,7 +163,9 @@ void Visit(const koopa_raw_value_t &value) {
     case KOOPA_RVT_BINARY:
       //二元算数
       Visit(kind.data.binary);
-      std::cout << "sw   t0, " << regcnt * 4 << "(sp)" << endl;
+      std::cout << "li   t4, " << regcnt * 4 << endl;
+      std::cout << "add  t4, t4, sp" << endl;
+      std::cout << "sw   t0, (t4)" << endl;
       mp[value] = regcnt;
       regcnt++;
       break;
@@ -185,7 +176,9 @@ void Visit(const koopa_raw_value_t &value) {
     case KOOPA_RVT_LOAD:
       //Memory load.  
       Visit(kind.data.load);
-      std::cout << "sw   t0, " << regcnt * 4 << "(sp)" << endl;
+      std::cout << "li   t4, " << regcnt * 4 << endl;
+      std::cout << "add  t4, t4, sp" << endl;
+      std::cout << "sw   t0, (t4)" << endl;
       mp[value] = regcnt;
       regcnt++;
       break;
@@ -201,6 +194,22 @@ void Visit(const koopa_raw_value_t &value) {
       break;
     case KOOPA_RVT_CALL:
       Visit(kind.data.call);
+      std::cout << "li   t4, " << regcnt * 4 << endl;
+      std::cout << "add  t4, t4, sp" << endl;
+      std::cout << "sw   a0, (t4)" << endl;
+      mp[value] = regcnt;
+      regcnt ++;
+      break;
+    case KOOPA_RVT_GLOBAL_ALLOC:
+      std::cout << "  .data" << endl;
+      std::cout << "  .globl " << value->name + 1 << endl;
+      std::cout << value->name + 1 << ":" << endl;
+      Visit(kind.data.global_alloc);
+      break;
+    case KOOPA_RVT_FUNC_ARG_REF:
+      Visit(kind.data.func_arg_ref);
+      mp[value] = regcnt;
+      regcnt ++;
       break;
     default:
       // 其他类型暂时遇不到
@@ -210,8 +219,13 @@ void Visit(const koopa_raw_value_t &value) {
 
 // 访问对应类型指令的函数定义
 void Visit(const koopa_raw_return_t &ret) {
-  string reg = string("a0");
-  set_reg(ret.value, reg);
+  if (ret.value != 0) {
+    string reg = string("a0");
+    set_reg(ret.value, reg);
+    std::cout << "li   t4, " << ra_reg_cnt * 4 << endl;
+    std::cout << "add  t4, t4, sp" << endl;
+    std::cout << "lw   ra, (t4)" << endl;
+  }
   std::cout << "addi sp, sp, ";
   std::cout << func_m_cnt << endl;
   std::cout << "ret" << endl;
@@ -220,8 +234,6 @@ void Visit(const koopa_raw_return_t &ret) {
 void Visit(const koopa_raw_integer_t &integer) {
     std::cout <<integer.value;
 }
-// 视需求自行实现
-//
 // typedef struct {
 //   /// Operator.
 //   koopa_raw_binary_op_t op;
@@ -294,9 +306,42 @@ void Visit(const koopa_raw_binary_t &binary) {
 //   koopa_raw_value_t dest;
 // } koopa_raw_store_t;
 void Visit(const koopa_raw_store_t &store) {
-  string reg = string("t0");
-  set_reg(store.value, reg);
-  std::cout << "sw   t0, " << mp[store.dest] * 4 << "(sp)" << endl;
+  if (store.value->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
+    std::cout << "la   t0, " << store.value->name + 1 << endl;
+    std::cout << "lw   t0, 0(t0)" << endl;
+
+  }
+  else if(store.value->kind.tag == KOOPA_RVT_GET_ELEM_PTR) {
+
+  }
+  else if(store.value->kind.tag == KOOPA_RVT_GET_PTR) {
+
+  }else {
+    string reg = string("t0");
+    set_reg(store.value, reg);
+  }
+
+  if(store.dest->kind.tag==KOOPA_RVT_GLOBAL_ALLOC) {
+      cout<<"la   t1, " << store.dest->name + 1 << endl;
+      cout<<"sw   t0, 0(t1)"<<endl;
+  }
+  else if(store.dest->kind.tag==KOOPA_RVT_GET_ELEM_PTR) {
+      // cout<<"   li t4, "<<M[(ull)sto_dest]<<endl;
+      // cout<<"   add t4, t4, sp"<<endl;
+      // cout<<"   lw t1, (t4)"<<endl;
+      // cout<<"   sw t0, 0(t1)"<<endl;
+  }
+  else if(store.dest->kind.tag==KOOPA_RVT_GET_PTR) {
+      // cout<<"   li t4, "<<M[(ull)sto_dest]<<endl;
+      // cout<<"   add t4, t4, sp"<<endl;
+      // cout<<"   lw t1, (t4)"<<endl;
+      // cout<<"   sw t0, 0(t1)"<<endl;
+  }
+  else {
+    std::cout << "li   t4, " << mp[store.dest] * 4 << endl;
+    std::cout << "add  t4, t4, sp" << endl;
+    std::cout << "sw   t0, (t4)" << endl;
+  }
 }
 
 // typedef struct {
@@ -304,8 +349,35 @@ void Visit(const koopa_raw_store_t &store) {
 //   koopa_raw_value_t src;
 // } koopa_raw_load_t;
 void Visit(const koopa_raw_load_t &load) {
-  string reg = string("t0");
-  set_reg(load.src, reg);
+  if (load.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
+    std::cout << "la   t0, " << load.src->name + 1 << endl;
+    std::cout << "lw   t0, 0(t0)" << endl;
+
+  }
+  else if(load.src->kind.tag == KOOPA_RVT_GET_ELEM_PTR) {
+      // cout<<"   li t4, "<< mp[load.src]<<endl;
+      // cout<<"   lw t0, (t4)"<<endl;
+      // cout<<"   lw t0, 0(t0)"<<endl;
+      // cout<<"   li t4, "<< regcnt <<endl;
+      // cout<<"   add t4, t4, sp"<<endl;
+      // cout<<"   sw t0, (t4)"<<endl;
+      // mp[(ull)value]=st;
+      // st+=4;
+  }
+  else if(load.src->kind.tag == KOOPA_RVT_GET_PTR) {
+      // cout<<"   li t4, "<< mp[load.src]<<endl;
+      // cout<<"   add t4, t4, sp"<<endl;
+      // cout<<"   lw t0, (t4)"<<endl;
+      // cout<<"   lw t0, 0(t0)"<<endl;
+      // cout<<"   li t4, "<<st<<endl;
+      // cout<<"   add t4, t4, sp"<<endl;
+      // cout<<"   sw t0, (t4)"<<endl;
+      // M[(ull)value]=st;
+      // st+=4;
+  }else {
+    string reg = string("t0");
+    set_reg(load.src, reg);
+  }
 }
 
 // typedef struct {
@@ -325,7 +397,6 @@ void Visit(const koopa_raw_branch_t &branch) {
   set_reg(branch.cond, reg);
   std::cout << "bnez t0, " << branch.true_bb->name + 1 << endl;
   std::cout << "j " << branch.false_bb->name + 1 << endl; 
-
 }
 
 // typedef struct {
@@ -345,5 +416,76 @@ void Visit(const koopa_raw_jump_t &jump) {
 //   koopa_raw_slice_t args;
 // } koopa_raw_call_t;
 void Visit(const koopa_raw_call_t &call) {
-  
+  int size = call.args.len;
+  if(size <= 8) {
+    for(int i = 0; i < size; i ++) {
+      auto value = call.args.buffer[i];
+      set_reg((koopa_raw_value_t)value, string("a") + to_string(i));
+    }
+    std::cout <<"call " << call.callee->name + 1 << endl;
+  }
+  else {
+    int newspace = (size - 8) * 4;
+    std::cout << "addi sp, sp, -" << newspace << endl;
+    for( int i = 0; i < 8; i ++) {
+      auto value = call.args.buffer[i];
+      set_reg((koopa_raw_value_t)value, string("a") + to_string(i));
+    }
+    for(int i = 8; i < size; i ++) {
+      auto value = call.args.buffer[i];
+      set_reg((koopa_raw_value_t)value, string("t0"));
+      std::cout << "li   t4, " << (i - 8) * 4 << endl;
+      std::cout << "add  t4, t4, sp" << endl;
+      std::cout << "sw   t0, (t4)" << endl;
+    }
+    std::cout << "call " << call.callee->name + 1 << endl;
+    std::cout << "addi sp, sp, " << newspace << endl;
+  }
+}
+
+// typedef struct {
+//   /// Initializer.
+//   koopa_raw_value_t init;
+// } koopa_raw_global_alloc_t;
+void Visit(const koopa_raw_global_alloc_t &global_alloc) {
+  auto &kind = global_alloc.init->kind;
+  if(kind.tag == KOOPA_RVT_INTEGER) {
+      cout<<"   .word "<< kind.data.integer.value << endl;
+      cout<<endl;
+  }
+  else if(kind.tag == KOOPA_RVT_AGGREGATE) {
+      koopa_raw_value_t val = kind.data.global_alloc.init;
+      //array
+  }
+  else if(kind.tag == KOOPA_RVT_ZERO_INIT) {
+      //koopa_raw_type_t value=data->ty->data.pointer.base;
+      int siz=4;
+      //while(value->tag==KOOPA_RTT_ARRAY)
+      // {
+      //     array_size[(ull)data].push_back(value->data.array.len);
+      //     siz*=value->data.array.len;
+      //     value=value->data.array.base;
+      // }
+      cout<<"   .zero "<<siz<<endl;
+  }
+}
+
+// typedef struct {
+//   /// Index.
+//   size_t index;
+// } koopa_raw_func_arg_ref_t;
+void Visit(const koopa_raw_func_arg_ref_t &func_arg_ref) {
+  if(func_arg_ref.index < 8) {
+    std::cout << "li   t4, " << regcnt * 4 << endl;
+    std::cout << "add  t4, t4, sp" << endl;
+    std::cout << "sw   a" << func_arg_ref.index << ", (t4)" << endl;
+  }
+  else {
+    std::cout << "li   t4, " << func_m_cnt + (func_arg_ref.index - 8) * 4 << endl;
+    std::cout << "add  t4, t4, sp" << endl;
+    std::cout << "lw   t0, (t4)" << endl; 
+    std::cout << "li   t4, " << regcnt * 4 << endl;
+    std::cout << "add  t4, t4, sp" << endl;
+    std::cout << "sw   t0, (t4)" << endl;
+  }
 }

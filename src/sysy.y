@@ -44,7 +44,7 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> Unit FuncDef FuncType Block Stmt Number Exp PrimaryExp UnaryExp UnaryOp AddExp MulExp AddOp MulOp RelExp RelOp EqExp EqOp LAndExp LOrExp Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal FuncFParam FuncFParams FuncRParams FunOrVarDef FunOrVarDecl ArrayDef ConstArrayInitVal ArrayInitVal ArrayLVal
+%type <ast_val> Unit FuncDef FuncType Block Stmt Number Exp PrimaryExp UnaryExp UnaryOp AddExp MulExp AddOp MulOp RelExp RelOp EqExp EqOp LAndExp LOrExp Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal FuncFParam FuncFParams FuncRParams FunOrVarDef FunOrVarDecl ArrayDef ConstArrayInitVal ArrayInitVal ArrayLVal VarIdent ArrayParam Param
 
 %%
 
@@ -558,7 +558,7 @@ ConstDef
   ast->const_def = unique_ptr<BaseAST>($5);
   $$ = ast;
 }
-| IDENT ArraryDef '=' ConstInitVal {
+| IDENT ArrayDef '=' ConstInitVal {
   auto ast = new ConstDefAST();
   ast->type = 2;
   ast->ident = *unique_ptr<std::string>($1);
@@ -566,7 +566,7 @@ ConstDef
   ast->const_init_val = unique_ptr<BaseAST>($4);
   $$ = ast;
 } 
-| IDENT ArraryDef '=' ConstInitVal ',' ConstDef {
+| IDENT ArrayDef '=' ConstInitVal ',' ConstDef {
   auto ast = new ConstDefAST();
   ast->type = 3;
   ast->ident = *unique_ptr<std::string>($1);
@@ -623,64 +623,48 @@ VarDecl
 ;
 
 VarDef
-: IDENT {
+: VarIdent {
   auto ast = new VarDefAST();
   ast->type = 0;
-  ast->ident = *unique_ptr<std::string>($1);
+  ast->var_ident = unique_ptr<BaseAST>($1);
   $$ = ast;
 }
-| IDENT '=' InitVal {
+| VarIdent '=' InitVal {
   auto ast = new VarDefAST();
   ast->type = 1;
-  ast->ident = *unique_ptr<std::string>($1);
+  ast->var_ident = unique_ptr<BaseAST>($1);
   ast->init_val = unique_ptr<BaseAST>($3);
   $$ = ast;
 }
-| IDENT ',' VarDef {
+| VarIdent ',' VarDef {
   auto ast = new VarDefAST();
   ast->type = 2;
-  ast->ident = *unique_ptr<std::string>($1);
+  ast->var_ident = unique_ptr<BaseAST>($1);
   ast->var_def = unique_ptr<BaseAST>($3);
   $$ = ast;
 }
-| IDENT '=' InitVal ',' VarDef {
+| VarIdent '=' InitVal ',' VarDef {
   auto ast = new VarDefAST();
   ast->type = 3;
-  ast->ident = *unique_ptr<std::string>($1);
+  ast->var_ident = unique_ptr<BaseAST>($1);
   ast->init_val = unique_ptr<BaseAST>($3);
   ast->var_def = unique_ptr<BaseAST>($5);
   $$ = ast;
 }
+;
+
+VarIdent
+: IDENT {
+  auto ast = new VarIdentAST();
+  ast->type = 0;
+  ast->ident = *unique_ptr<std::string>($1);
+  $$ = ast;
+}
 | IDENT ArrayDef {
-  auto ast = new VarDefAST();
-  ast->type = 4;
+  auto ast = new VarIdentAST();
+  ast->type = 1;
   ast->ident = *unique_ptr<std::string>($1);
   ast->array_def = unique_ptr<BaseAST>($2);
-  $$ = ast;
-}
-| IDENT ArrayDef "=" InitVal {
-  auto ast = new VarDefAST();
-  ast->type = 5;
-  ast->ident = *unique_ptr<std::string>($1);
-  ast->array_def = unique_ptr<BaseAST>($2);
-  ast->init_val = unique_ptr<BaseAST>($4);
-  $$ = ast;
-}
-| IDENT ArrayDef "," VarDef {
-  auto ast = new VarDefAST();
-  ast->type = 6;
-  ast->ident = *unique_ptr<std::string>($1);
-  ast->array_def = unique_ptr<BaseAST>($2);
-  ast->var_def = unique_ptr<BaseAST>($4);
-  $$ = ast;
-}
-| IDENT ArrayDef "=" InitVal "," VarDef {
-  auto ast = new VarDefAST();
-  ast->type = 7;
-  ast->ident = *unique_ptr<std::string>($1);
-  ast->array_def = unique_ptr<BaseAST>($2);
-  ast->init_val = unique_ptr<BaseAST>($4);
-  ast->var_def = unique_ptr<BaseAST>($6);
   $$ = ast;
 }
 ;
@@ -714,7 +698,7 @@ ArrayInitVal
 }
 | InitVal ',' ArrayInitVal {
   auto ast = new ArrayInitValAST();
-  ast->type = 0;
+  ast->type = 1;
   ast->init_val = unique_ptr<BaseAST>($1);
   ast->array_init_val = unique_ptr<BaseAST>($3);
   $$ = ast;
@@ -780,7 +764,7 @@ ArrayLVal
   auto ast = new ArrayLValAST();
   ast->type = 1;
   ast->exp = unique_ptr<BaseAST>($2);
-  ast->exp = unique_ptr<BaseAST>($4);
+  ast->array_l_val = unique_ptr<BaseAST>($4);
   $$ =ast;
 }
 ;
@@ -798,25 +782,55 @@ ConstExp
 FuncFParams
 : FuncFParam {
   auto ast = new FuncFParamsAST();
+  ast->type = 0;
   ast->func_f_param = unique_ptr<BaseAST>($1);
+  $$ = ast;
+}
+| FuncFParam ',' FuncFParams{
+  auto ast = new FuncFParamsAST();
+  ast->type = 1;
+  ast->func_f_param = unique_ptr<BaseAST>($1);
+  ast->func_f_params = unique_ptr<BaseAST>($3);
   $$ = ast;
 }
 ;
 
 FuncFParam 
-: BType IDENT {
+: Param {
   auto ast = new FuncFParamAST();
   ast->type = 0;
-  ast->b_type = unique_ptr<BaseAST>($1);
+  ast->param = unique_ptr<BaseAST>($1);
+  $$ = ast;
+}
+| ArrayParam {
+  auto ast = new FuncFParamAST();
+  ast->type = 1;
+  ast->array_param = unique_ptr<BaseAST>($1);
+  $$ = ast;
+}
+;
+
+ArrayParam
+: BType IDENT '[' ']' {
+  auto ast = new ArrayParamAST();
+  ast->type = 0;
   ast->ident = *unique_ptr<std::string>($2);
   $$ = ast;
 }
-| BType IDENT ',' FuncFParam {
-  auto ast = new FuncFParamAST();
+| BType IDENT '[' ']' ArrayDef {
+  auto ast = new ArrayParamAST();
   ast->type = 1;
+  ast->ident = *unique_ptr<std::string>($2);
+  ast->array_def = unique_ptr<BaseAST>($5);
+  $$ = ast;
+}
+
+Param 
+: BType IDENT {
+  auto ast = new ParamAST();
+  ast->type = 0;
   ast->b_type = unique_ptr<BaseAST>($1);
   ast->ident = *unique_ptr<std::string>($2);
-  ast->func_f_param = unique_ptr<BaseAST>($4);
   $$ = ast;
 }
 ;
@@ -842,6 +856,6 @@ FuncRParams
 // 定义错误处理函数, 其中第二个参数是错误信息
 // parser 如果发生错误 (例如输入的程序出现了语法错误), 就会调用这个函数
 void yyerror(unique_ptr<BaseAST> &ast, const char *s) {
-  if(ast == 0) cerr << "no ast" << endl;
+  if(ast == 0) cerr << "error:  no ast" << endl;
   cerr << "error: " << s <<" "<< ast->Dump() << endl;
 }

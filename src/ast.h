@@ -6,6 +6,7 @@
 #include <iostream>
 #include <map>
 #include <vector>
+#include <cstring>
 #include <set>
 #include <stack>
 using namespace std;
@@ -61,6 +62,57 @@ static stack<int> ifstack;
 
 static int len_size;
 static int len[256];
+static int cur_size;
+static int *temp_array;
+static int *pos;
+
+static string cur_cnt;
+
+static void get_array_str_global(int size) {
+    if(size > len_size) {
+        return;
+    }
+    if(size == len_size) {
+        std::cout << *pos;
+        return;
+    }
+    std::cout << "{";
+    int foot = 1;
+    for(int i = size + 1; i < len_size; i++) {
+        foot *= len[i];
+    }
+    int *temppos = pos;
+    int *end = temppos + foot * len[size];
+    get_array_str_global(size + 1);
+    for(temppos = temppos + foot; temppos < end; temppos += foot) {
+        pos = temppos;
+        std::cout << ", ";
+        get_array_str_global(size + 1);
+    }
+    std::cout << "}";
+    
+}
+
+static void get_array_str_local(int size) {
+    if(size == len_size) {
+        std::cout << "store " << *pos << ", " << cur_cnt << endl;
+        return;
+    }
+    int *start = pos;
+    int foot = 1;
+    for(int i = size + 1; i < len_size; i ++) {
+        foot *= len[size];
+    }
+    for(int i = 0; i < len[size]; i++) {
+        now ++;
+        std::cout << "%" << now << " = getelemptr " << cur_cnt << ", " << i << endl;
+        string temp = cur_cnt;
+        cur_cnt = string("%") + to_string(now);
+        pos = start + foot * i;
+        get_array_str_local(size + 1);
+        cur_cnt = temp;
+    }
+}
 
 class BaseAST {
     public:
@@ -264,14 +316,24 @@ class StmtAST : public BaseAST {
             return string("");
         }
         if(type == 0){
-            string ident = l_val->Dump();
-            //Symbol s = symbt.globalsymbol[ident];
-            Symbol *s = find_ident(ident);
-            s->value = exp->Calc();
-            //symbt.globalsymbol[ident] = s;
-            string ret = exp->Dump();
-            std::cout << "store "<< ret << ", @" << s->str << endl;
+            if (l_val->type == 0) {
+                string ident = l_val->Dump();
+                Symbol *s = find_ident(ident);
+                s->value = exp->Calc();
+                string ret = exp->Dump();
+                std::cout << "store "<< ret << ", " << s->str << endl;
+                return ident; 
             return ident; 
+                return ident; 
+            return ident; 
+                return ident; 
+            }
+            else {
+                string retd = l_val->Dump();
+                string retv = exp->Dump();
+                std::cout << "store "<< retv << ", " << cur_cnt << endl;
+                return retd;
+            }
         }
         else if (type == 1) {
             string ret = exp->Dump();
@@ -402,22 +464,33 @@ class PrimaryExpAST : public BaseAST {
     string Dump() const override {
         if(type == 0){
             string ret = exp->Dump();
+            cur_cnt = ret;
             return ret;
         }
         else if(type == 1) {
             string ident = l_val->Dump();
-            //Symbol s = symbt.globalsymbol[ident];
-            Symbol *s = find_ident(ident);
-            if(s->type == 0) {
-                return to_string(l_val->Calc());
+            if (l_val->type == 0) {
+                Symbol *s = find_ident(ident);
+                if(s->type == 0) {
+                    cur_cnt = to_string(l_val->Calc());
+                    return to_string(l_val->Calc());
+                }
+                else if(s->type == 1) {
+                    now++;
+                    std::cout << "%" << now << " = load " << s->str <<endl;
+                    cur_cnt = string("%") + to_string(now);
+                    return string("%") + to_string(now);
+                }
             }
-            else if(s->type == 1) {
-                now++;
-                std::cout << "%" << now << " = load @" << s->str <<endl;
+            else {
+                now ++;
+                std::cout << "%" << now << " = load " << ident <<endl;
+                cur_cnt = string("%") + to_string(now - 1);
                 return string("%") + to_string(now);
             }
         }
         else if(type == 2){
+            cur_cnt = number->Dump();
             return number->Dump();
         }
         return string("");
@@ -776,9 +849,9 @@ class LAndExpAST : public BaseAST {
             Symbol s;
             s.type = 1;
             s.value = 0;
-            s.str = reseult + "_" + to_string(depth);
-            std::cout << "@" << s.str << " = alloc i32" << endl; 
-            std::cout << "store 0, @" << s.str << endl;
+            s.str = "@" + reseult + "_" + to_string(depth);
+            std::cout <<  s.str << " = alloc i32" << endl; 
+            std::cout << "store 0, " << s.str << endl;
             insert_ident(reseult,s);
 
             now++;
@@ -793,12 +866,12 @@ class LAndExpAST : public BaseAST {
             string ret2 = eq_exp->Dump();
             now++;
             std::cout << "%" << now <<" = ne " << ret2 <<", 0" << endl;
-            std::cout << "store %" << now << ", @" << s.str << endl;
+            std::cout << "store %" << now << ", " << s.str << endl;
             std::cout << "jump " << ifend << endl;
 
             std::cout << ifend << ":" << endl;
             now++;
-            std::cout << "\%" << now << " = load @" << s.str << endl;
+            std::cout << "\%" << now << " = load " << s.str << endl;
             
             return string("%")+to_string(now);
         }
@@ -835,9 +908,9 @@ class LOrExpAST : public BaseAST {
             Symbol s;
             s.type = 1;
             s.value = 0;
-            s.str = reseult + "_" + to_string(depth);
-            std::cout << "@" << s.str << " = alloc i32" << endl; 
-            std::cout << "store 1, @" << s.str << endl;
+            s.str = "@" + reseult + "_" + to_string(depth);
+            std::cout <<  s.str << " = alloc i32" << endl; 
+            std::cout << "store 1, " << s.str << endl;
             insert_ident(reseult,s);
 
             now++;
@@ -852,12 +925,12 @@ class LOrExpAST : public BaseAST {
             string ret2 = l_and_exp->Dump();
             now++;
             std::cout << "%" << now <<" = ne " << ret2 <<", 0" << endl;
-            std::cout << "store %" << now << ", @" << s.str << endl;
+            std::cout << "store %" << now << ", " << s.str << endl;
             std::cout << "jump " << ifend << endl;
 
             std::cout << ifend << ":" << endl;
             now++;
-            std::cout << "\%" << now << " = load @" << s.str << endl;
+            std::cout << "\%" << now << " = load " << s.str << endl;
             
             return string("%")+to_string(now);
         }
@@ -933,14 +1006,55 @@ class ConstDefAST : public BaseAST {
     std::unique_ptr<BaseAST> const_def;
     std::unique_ptr<BaseAST> array_def;
     string Dump() const override {
-        Symbol s;
-        s.type = 0;
-        s.value = const_init_val->Calc();
-        insert_ident(ident, s);
-        if(type == 1) {
+        if(type == 0 || type == 1) {
+            Symbol s;
+            s.type = 0;
+            s.value = const_init_val->Calc();
+            insert_ident(ident, s);
+        }
+        else if (type == 2 || type == 3) {
+            Symbol s;
+            s.type = 2;
+            s.str = "@" + ident + to_string(depth);
+            len_size = 0;
+            cur_size = 0;
+            string ret = array_def->Dump();
+            int size = 1;
+            for(int i = 0; i < len_size; i++ ) {
+                size *= len[i];
+            }
+            temp_array = (int*)calloc(size, sizeof(int));
+            pos = temp_array;
+            const_init_val->Dump();
+            if(cur_func_name == string("")) {
+                s.str = "@" + ident;
+                std::cout << "global " << s.str << " = alloc " << ret << ", ";
+                if(const_init_val->type == 1) {
+                    std::cout << "zeroinit" << endl;
+                }
+                else {
+                    pos = temp_array;
+                    get_array_str_global(0);
+                    cout << endl;
+                }
+            }
+            else {
+                std::cout << s.str << " = alloc " << ret << endl;
+                pos = temp_array;
+                cur_cnt = s.str;
+                get_array_str_local(0);
+            }
+            insert_ident(ident, s);
+            if(temp_array) {
+                free(temp_array);temp_array = 0;
+            }
+        }
+        if(type == 1 || type == 3) {
             const_def->Dump();
         }
+        
         return string("");
+        
     }
     int Calc() const override {
         return 0;
@@ -950,17 +1064,18 @@ class ConstDefAST : public BaseAST {
 //ArrayDef -> '[' ConstExp ']' | '[' ConstExp ']' ArrayDef
 class ArrayDefAST : public BaseAST {
     public:
-    std::unique_ptr<BaseAST> const_def;
+    std::unique_ptr<BaseAST> const_exp;
     std::unique_ptr<BaseAST> array_def;
     string Dump() const override {
-        Symbol s;
-        s.type = 0;
-        s.value = const_init_val->Calc();
-        insert_ident(ident, s);
+        int cal = const_exp->Calc();
+        len[len_size] = cal;
+        len_size ++;
+        string ret1 = to_string(cal);
         if(type == 1) {
-            const_def->Dump();
+            string ret2 = array_def->Dump();
+            return "[" + ret2 + ", " + ret1 + "]";
         }
-        return string("");
+        return "[i32, " + ret1 + "]";
     }
     int Calc() const override {
         return 0;
@@ -973,6 +1088,31 @@ class ConstInitValAST : public BaseAST {
     std::unique_ptr<BaseAST> const_exp;
     std::unique_ptr<BaseAST> const_array_init_val;
     string Dump() const override {
+        if(type == 0) {
+            if(temp_array) {
+                *pos = const_exp->Calc();
+                pos++;
+            }
+            return to_string(const_exp->Calc());
+        }
+        else if (type == 1) {
+            int size = 1;
+            for(int i = cur_size; i < len_size; i++) {
+                size *= len[i];
+            }
+            pos += size;
+        }
+        else if (type == 2) {
+            int size = 1;
+            for(int i = cur_size; i < len_size; i++) {
+                size *= len[i];
+            }
+            int *temppos = pos + size;
+            cur_size ++;
+            const_array_init_val->Dump();
+            cur_size --;
+            pos = temppos;
+        }
         return string("");
     }
     int Calc() const override {
@@ -981,11 +1121,15 @@ class ConstInitValAST : public BaseAST {
 };
 
 //ConstArrayInitVal -> ConstInitVal | ConstInitVal ',' ConstArrayInitVal
-class ConstArrayInitVal : public BaseAST {
+class ConstArrayInitValAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> const_init_val;
     std::unique_ptr<BaseAST> const_array_init_val;
     string Dump() const override {
+        const_init_val->Dump();
+        if (type == 1) {
+            const_array_init_val->Dump();
+        }         
         return string("");
     }
     int Calc() const override {
@@ -1012,41 +1156,81 @@ class VarDeclAST : public BaseAST {
 //= IDENT ArrayDef | IDENT ArrayDef "=" InitVal | IDENT ArrayDef "," VarDef | IDENT ArrayDef "=" InitVal "," VarDef
 class VarDefAST : public BaseAST {
     public:
-    std::string ident;
+    std::unique_ptr<BaseAST> var_ident;
     std::unique_ptr<BaseAST> init_val;
     std::unique_ptr<BaseAST> var_def;
     std::unique_ptr<BaseAST> array_def;
     string Dump() const override {
-        if(cur_func_name == string("")){
+        if (var_ident->type == 0) {
+            string ident = var_ident->Dump();
+            if(cur_func_name == string("")){
+                Symbol s;
+                s.type = 1;
+                s.str = "@" + ident;
+                s.value = 0;
+                std::cout << "global " << s.str << " = alloc i32";
+                if(type == 1 || type == 3) {
+                    int ret = init_val->Calc();
+                    s.value = ret;
+                    std::cout << ", " << ret << endl;
+                }
+                else {
+                    std::cout << ", zeroinit" << endl;
+                }
+                insert_ident(ident, s);
+                if(type == 2 || type == 3) {
+                    var_def->Dump();
+                }
+                return string("");
+            }
             Symbol s;
             s.type = 1;
-            s.str = ident;
             s.value = 0;
-            std::cout << "global @" << s.str << " = alloc i32";
+            s.str = "@" + ident  + "_" + to_string(depth);
+            std::cout << s.str <<" = alloc i32" <<endl;
             if(type == 1 || type == 3) {
-                int ret = init_val->Calc();
-                s.value = ret;
-                std::cout << ", " << ret << endl;
-            }
-            else {
-                std::cout << ", zeroinit" << endl;
+                string ret = init_val->Dump();
+                std::cout << "store " << ret << ", " << s.str << endl;
             }
             insert_ident(ident, s);
-            if(type == 2 || type == 3) {
-                var_def->Dump();
+        }
+        else {
+            string ret = var_ident->Dump();
+            if (type == 1 || type == 3) {               
+                int size = 1;
+                for(int i = 0; i < len_size; i++ ) {
+                    size *= len[i];
+                }
+                temp_array = (int*)calloc(size, sizeof(int));
+                pos = temp_array;
+                init_val->Dump();
             }
-            return string("");
+            if(cur_func_name == string("")) {               
+                if (type == 1 || type == 3){
+                    std::cout << ", ";
+                    if(init_val->type == 1) {
+                        std::cout << "zeroinit";
+                    }
+                    else {
+                        pos = temp_array;
+                        get_array_str_global(0);
+                    }
+                }
+                else {
+                    std::cout << ", zeroinit";
+                }
+                std::cout << endl;
+            }
+            else {
+                if (type == 1 || type == 3) {
+                    get_array_str_local(0);
+                }
+            }
+            if(temp_array) {
+                free(temp_array);temp_array = 0;
+            }
         }
-        Symbol s;
-        s.type = 1;
-        s.value = 0;
-        s.str = ident  + "_" + to_string(depth);
-        std::cout << "@" << s.str <<" = alloc i32" <<endl;
-        if(type == 1 || type == 3) {
-            string ret = init_val->Dump();
-            std::cout << "store " << ret << ", @" << s.str << endl;
-        }
-        insert_ident(ident, s);
+    
         if(type == 2 || type == 3) {
             var_def->Dump();
         }
@@ -1057,14 +1241,79 @@ class VarDefAST : public BaseAST {
     }
 };
 
+class VarIdentAST : public BaseAST {
+    public:
+    std::string ident;
+    std::unique_ptr<BaseAST> array_def;
+    string Dump() const override {
+        if(type == 0) {
+            return ident;
+        }
+        else {
+            Symbol s;
+            s.type = 2;
+            s.str = "@" + ident + to_string(depth);
+            len_size = 0;
+            cur_size = 0;
+            string ret = array_def->Dump();
+            if(cur_func_name == string("")) {
+                s.str = "@" + ident;
+                std::cout << "global " << s.str << " = alloc " << ret;
+            }
+            else {
+                std::cout << s.str << " = alloc " << ret << endl;
+                pos = temp_array;
+                cur_cnt = s.str;
+            }
+            insert_ident(ident, s);
+            return ret;
+        }
+        return string("");
+    }
+    int Calc() const override {
+        return 0;
+    }
+};
+
+
 //InitVal       ::= Exp | '{' '}' | '{' ArrayInitVal '}'
 class InitValAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> exp;
     std::unique_ptr<BaseAST> array_init_val;
     string Dump() const override {
-        string ret = exp->Dump();
-        return ret;
+        if(type == 0) {
+            if(temp_array) {
+                string ret = exp->Dump();
+                *pos = stoi(ret.substr(0));
+                pos++;
+                
+            }
+            else {
+                string ret = exp->Dump();
+                return ret;
+            }
+            
+        }
+        else if (type == 1) {
+            int size = 1;
+            for(int i = cur_size; i < len_size; i++) {
+                size *= len[i];
+            }
+            pos += size;
+        }
+        else if (type == 2) {
+            int size = 1;
+            for(int i = cur_size; i < len_size; i++) {
+                size *= len[i];
+            }
+            int *temppos = pos + size;
+            cur_size ++;
+            array_init_val->Dump();
+            cur_size --;
+            pos = temppos;
+        }
+        return string("");
     }
     int Calc() const override {
         return exp->Calc();
@@ -1077,8 +1326,14 @@ class ArrayInitValAST : public BaseAST {
     std::unique_ptr<BaseAST> init_val;
     std::unique_ptr<BaseAST> array_init_val;
     string Dump() const override {
+        init_val->Dump();
+        if(type == 1) {
+            array_init_val->Dump();
+        }
+        return string("");
     }
     int Calc() const override {
+        return 0;
     }
 };
 
@@ -1114,17 +1369,29 @@ class BlockItemAST : public BaseAST {
     }
 };
 
-
+static int getptr = 0;
 // LVal          ::= IDENT | IDENT ArrayLVal
 class LValAST : public BaseAST {
     public:
     std::string ident;
     std::unique_ptr<BaseAST> array_l_val;
     string Dump() const override {
-        return ident;
+        if ( type == 0) {
+            return ident;
+        }
+        else if (type == 1) {
+            Symbol *s = find_ident(ident);
+            cur_cnt = s->str;
+            if(s->type == 4) {
+                getptr = 1;
+            }
+            string ret = array_l_val->Dump();
+            getptr = 0;
+            return ret;
+        }
+        return string("");
     }
     int Calc() const override {
-        //Symbol s = symbt.globalsymbol[ident];
         Symbol *s = find_ident(ident);
         return s->value;
     }
@@ -1136,12 +1403,26 @@ class ArrayLValAST : public BaseAST {
     std::unique_ptr<BaseAST> exp;
     std::unique_ptr<BaseAST> array_l_val;
     string Dump() const override {
-        return ident;
+        string ret = exp->Dump();
+        now++;
+        if(getptr) {
+            std::cout << "%" << now << " = load " << cur_cnt << endl;
+            now++;
+            std::cout << "%" << now << " = getptr " << cur_cnt << ", " << ret << endl;
+            getptr = 0;
+        }
+        else std::cout << "%" << now << " = getelemptr " << cur_cnt << ", " << ret << endl;
+        cur_cnt = string("%") + to_string(now);
+        if(type == 0) {
+            return cur_cnt;
+        }
+        else{
+            string ret_array = array_l_val->Dump();
+            return ret_array;
+        } 
     }
     int Calc() const override {
-        //Symbol s = symbt.globalsymbol[ident];
-        Symbol *s = find_ident(ident);
-        return s->value;
+        return 0;
     }
 };
 
@@ -1158,35 +1439,92 @@ class ConstExpAST : public BaseAST {
     }
 };
 
-//FuncFParams ::= FuncFParam;
+//FuncFParams ::= FuncFParam | FuncFParam ',' FuncFParams;
 class FuncFParamsAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> func_f_param;
+    std::unique_ptr<BaseAST> func_f_params;
     string Dump() const override {
         func_f_param->Dump();
+        if(type == 1) {
+            std::cout << ", ";
+            func_f_params->Dump();
+        }
         return string("");
     }
     int Calc() const override {
         func_f_param->Calc();
+        if(type == 1) {
+            func_f_param->Calc();
+        }
         return 0;
     }
-
 };
 
-//FuncFParam  ::= BType IDENT | BType IDENT "," FuncFParam;
+//FuncFParam ->   Param | ArrayParam
 class FuncFParamAST : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> param;
+    std::unique_ptr<BaseAST> array_param;
+    string Dump() const override {
+        if(type == 0) {
+            param->Dump();
+        }
+        else {
+            array_param->Dump();
+        }
+        return string("");
+    }
+    int Calc() const override {
+        if(type == 0) {
+            param->Calc();
+        }
+        else {
+            array_param->Calc();
+        }
+        return 0;
+    }
+};
+
+//BType IDENT "[" "]"  {"[" ConstExp "]"}
+class ArrayParamAST : public BaseAST {
+    public:
+    string ident;
+    std::unique_ptr<BaseAST> array_def;
+    string Dump() const override {
+        if(type == 0) {
+            std::cout << "@" << ident << ": *i32";
+        }
+        else {
+            std::cout << "@" << ident << ": *" << array_def->Dump();
+        }
+        return string("");
+    }
+    int Calc() const override {
+        auto &smap = funcsymbolmap[cur_func_name];
+        Symbolmap fsl;
+        smap.push_back(fsl);
+        Symbol s;
+        s.type = 4;
+        s.value = 0;
+        s.str = "%" + ident  + "_" + to_string(depth);
+        std::cout <<  s.str <<" = alloc *";
+        if(type == 1) std::cout << array_def->Dump() << endl;
+        else std::cout << "i32" << endl;
+        std::cout << "store @" << ident << ", " << s.str << endl;
+        insert_ident(ident, s);
+        return 0;
+    }
+};
+
+//FuncFParam  ::= BType IDENT
+class ParamAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> b_type;
     std::string ident;
-    std::unique_ptr<BaseAST> func_f_param;
     string Dump() const override {
-        if (type == 0) {
-            std::cout << "@" << ident <<": i32";
-        }
-        else if (type == 1) {
-            std::cout << "@" << ident <<": i32, ";
-            func_f_param->Dump(); 
-        }
+        std::cout << "@" << ident <<": i32";
+        
         return string("");
     }
     int Calc() const override {
@@ -1196,13 +1534,10 @@ class FuncFParamAST : public BaseAST {
         Symbol s;
         s.type = 1;
         s.value = 0;
-        s.str = ident  + "_" + to_string(depth);
-        std::cout << "@" << s.str <<" = alloc i32" <<endl;
-        std::cout << "store @" << ident << ", @" << s.str << endl;
+        s.str = "%" + ident  + "_" + to_string(depth);
+        std::cout <<  s.str <<" = alloc i32" <<endl;
+        std::cout << "store @" << ident << ", " << s.str << endl;
         insert_ident(ident, s);
-        if(type == 1) {
-            func_f_param->Calc();
-        }
         return 0;
     }
 };
@@ -1215,6 +1550,7 @@ class FuncRParamsAST : public BaseAST {
     std::unique_ptr<BaseAST> func_r_params;
     string Dump() const override {
         string ret1 = exp->Dump();
+        //ret1 = cur_cnt;
         if(type == 1) {
             string ret2 =  func_r_params->Dump();
             return ret1 + string(", ") + ret2;
